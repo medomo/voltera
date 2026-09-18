@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { Subscriber, TariffType } from '../types';
 
 export interface ParsedSubscriberRow {
@@ -175,35 +175,63 @@ export const formatSubscribersForExport = (
 /**
  * Exports subscribers to native Excel (.xlsx) file with RTL direction and column width sizing.
  */
-export const exportSubscribersToExcel = (
+export const exportSubscribersToExcel = async (
   subscribers: Subscriber[],
   options: SubscriberExportOptions = { format: 'xlsx' }
 ) => {
   const filename = options.filename || `سجل_المشتركين_${new Date().toISOString().split('T')[0]}`;
   const formattedData = formatSubscribersForExport(subscribers, options.customColumns);
 
-  const worksheet = XLSX.utils.json_to_sheet(formattedData);
-
-  // Set Right-To-Left view for Arabic worksheet
-  worksheet['!views'] = [{ rightToLeft: true }];
-
-  // Auto-fit column widths based on headers and data
-  if (formattedData.length > 0) {
-    const keys = Object.keys(formattedData[0]);
-    worksheet['!cols'] = keys.map(key => {
-      let maxLen = key.length;
-      formattedData.forEach(row => {
-        const valStr = String(row[key] ?? '');
-        if (valStr.length > maxLen) maxLen = valStr.length;
-      });
-      return { wch: Math.min(Math.max(maxLen + 4, 14), 45) };
-    });
+  if (formattedData.length === 0) {
+    alert('لا توجد بيانات مشتركين لتصديرها.');
+    return;
   }
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'سجل المشتركين');
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'نظام إدارة المشتركين والعدادات';
+  workbook.created = new Date();
+  const worksheet = workbook.addWorksheet('سجل المشتركين', {
+    views: [{ rightToLeft: true }]
+  });
 
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
+  const headers = Object.keys(formattedData[0]);
+  worksheet.columns = headers.map(key => {
+    let maxLen = key.length;
+    formattedData.forEach(row => {
+      const valStr = String(row[key] ?? '');
+      if (valStr.length > maxLen) maxLen = valStr.length;
+    });
+    return {
+      header: key,
+      key: key,
+      width: Math.min(Math.max(maxLen + 4, 14), 45)
+    };
+  });
+
+  // Header row formatting
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  headerRow.fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1E293B' }
+  };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+  formattedData.forEach(row => {
+    worksheet.addRow(row);
+  });
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}.xlsx`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 /**
@@ -322,24 +350,51 @@ export const downloadSubscribersSampleTemplate = (format: 'xlsx' | 'csv' = 'xlsx
   ];
 
   if (format === 'xlsx') {
-    const worksheet = XLSX.utils.json_to_sheet(sampleData);
-    worksheet['!views'] = [{ rightToLeft: true }];
-    worksheet['!cols'] = [
-      { wch: 15 }, // كود المشترك
-      { wch: 30 }, // اسم المشترك
-      { wch: 15 }, // رقم العداد
-      { wch: 18 }, // الهاتف
-      { wch: 26 }, // المنطقة
-      { wch: 24 }, // المحول
-      { wch: 12 }, // نوع التعرفة
-      { wch: 10 }, // الحالة
-      { wch: 18 }, // القراءة الابتدائية
-      { wch: 18 }, // الرصيد الافتتاحي
-      { wch: 30 }, // ملاحظات
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'نظام إدارة المشتركين والعدادات';
+    workbook.created = new Date();
+    const worksheet = workbook.addWorksheet('قالب استيراد المشتركين', {
+      views: [{ rightToLeft: true }]
+    });
+
+    worksheet.columns = [
+      { header: 'كود المشترك', key: 'كود المشترك', width: 15 },
+      { header: 'اسم المشترك', key: 'اسم المشترك', width: 30 },
+      { header: 'رقم العداد', key: 'رقم العداد', width: 15 },
+      { header: 'رقم الهاتف / الجوال', key: 'رقم الهاتف / الجوال', width: 18 },
+      { header: 'المربع الجغرافي / المنطقة', key: 'المربع الجغرافي / المنطقة', width: 26 },
+      { header: 'المحول / العداد المركزي', key: 'المحول / العداد المركزي', width: 24 },
+      { header: 'نوع التعرفة', key: 'نوع التعرفة', width: 12 },
+      { header: 'الحالة', key: 'الحالة', width: 10 },
+      { header: 'القراءة الابتدائية', key: 'القراءة الابتدائية', width: 18 },
+      { header: 'الرصيد الافتتاحي', key: 'الرصيد الافتتاحي', width: 18 },
+      { header: 'ملاحظات', key: 'ملاحظات', width: 30 },
     ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'قالب استيراد المشتركين');
-    XLSX.writeFile(workbook, 'قالب_استيراد_المشتركين_النموذجي.xlsx');
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E293B' }
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    sampleData.forEach(row => {
+      worksheet.addRow(row);
+    });
+
+    workbook.xlsx.writeBuffer().then(buffer => {
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'قالب_استيراد_المشتركين_النموذجي.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
   } else {
     const headers = Object.keys(sampleData[0]);
     let csv = '\uFEFF';
@@ -636,13 +691,44 @@ export async function parseSubscribersFromFile(
 ): Promise<ParseResult> {
   const fileName = file.name.toLowerCase();
 
-  // Excel binary files (.xlsx, .xls, .ods)
-  if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.ods')) {
+  // Excel binary files (.xlsx)
+  if (fileName.endsWith('.xlsx')) {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
-    const rawObjects = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      return { rows: [], totalParsed: 0, validCount: 0, errorCount: 0, duplicateInFileCount: 0, existingInDbCount: 0 };
+    }
+
+    const headers: string[] = [];
+    const rawObjects: Record<string, any>[] = [];
+
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        row.eachCell((cell, colNumber) => {
+          headers[colNumber] = String(cell.value ?? '').trim();
+        });
+      } else {
+        const rowObj: Record<string, any> = {};
+        row.eachCell((cell, colNumber) => {
+          const header = headers[colNumber];
+          if (header) {
+            let val = cell.value;
+            if (val && typeof val === 'object' && 'text' in val) {
+              val = (val as any).text;
+            } else if (val && typeof val === 'object' && 'result' in val) {
+              val = (val as any).result;
+            }
+            rowObj[header] = val ?? '';
+          }
+        });
+        if (Object.keys(rowObj).length > 0) {
+          rawObjects.push(rowObj);
+        }
+      }
+    });
+
     return processRawSubscriberRows(rawObjects, existingSubscribers);
   }
 

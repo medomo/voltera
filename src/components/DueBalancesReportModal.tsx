@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { 
   Subscriber, MeterReading, Payment, SystemSettings, User 
 } from '../types';
@@ -689,7 +689,7 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
   };
 
   // Export Excel with real XLSX
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const data = effectiveExportItems.map((item, idx) => {
       const row: any = {};
       visibleColumns.forEach(col => {
@@ -720,10 +720,43 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       return row;
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'كشف المستحقات');
-    XLSX.writeFile(workbook, `كشف_المستحقات_والمحصل_${new Date().toISOString().split('T')[0]}.xlsx`);
+    if (data.length === 0) return;
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'نظام إدارة المشتركين والعدادات';
+    workbook.created = new Date();
+    const worksheet = workbook.addWorksheet('كشف المستحقات', {
+      views: [{ rightToLeft: true }]
+    });
+
+    const headers = Object.keys(data[0]);
+    worksheet.columns = headers.map(key => ({
+      header: key,
+      key: key,
+      width: 20
+    }));
+
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1E293B' }
+    };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+
+    data.forEach(r => worksheet.addRow(r));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `كشف_المستحقات_والمحصل_${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Helper to build PrintableReportConfig

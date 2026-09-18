@@ -8,7 +8,15 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+
+  // Security hardening
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    next();
+  });
 
   app.use(express.json({ limit: '10mb' }));
 
