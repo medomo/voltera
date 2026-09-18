@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
@@ -138,28 +139,65 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    // In production bundled CJS, __dirname is the directory containing server.cjs (inside dist/) or root
-    const distPath = typeof __dirname !== 'undefined'
-      ? (path.basename(__dirname) === 'dist' ? __dirname : path.join(__dirname, 'dist'))
-      : path.join(process.cwd(), 'dist');
+  // Global error handler
+  app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error('Unhandled server error:', err);
+    res.status(500).json({ error: 'Internal server error', message: err?.message });
+  });
 
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+  // Vite middleware for development vs static serve for production
+  if (process.env.NODE_ENV !== 'production' && !process.env.SERVE_STATIC) {
+    try {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch (viteErr) {
+      console.warn('Could not initialize Vite middleware, falling back to static serving:', viteErr);
+      serveStaticFiles(app);
+    }
+  } else {
+    serveStaticFiles(app);
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  // Handle process shutdown signals cleanly
+  process.on('SIGTERM', () => {
+    server.close(() => console.log('Process terminated'));
+  });
+  process.on('SIGINT', () => {
+    server.close(() => console.log('Process interrupted'));
   });
 }
 
-startServer();
+function serveStaticFiles(app: express.Application) {
+  // Resolve dist folder accurately in any deployment environment
+  let distPath = path.join(process.cwd(), 'dist');
+  if (typeof __dirname !== 'undefined') {
+    if (path.basename(__dirname) === 'dist') {
+      distPath = __dirname;
+    } else if (fs.existsSync(path.join(__dirname, 'dist'))) {
+      distPath = path.join(__dirname, 'dist');
+    }
+  }
+
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    const indexPath = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send('Application build not found. Please run npm run build first.');
+    }
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Fatal error starting server:', err);
+  process.exit(1);
+});
+
