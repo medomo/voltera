@@ -1966,6 +1966,8 @@ export default function App() {
           smsTemplates={smsTemplates}
           failedSms={failedSms}
           onDeleteFailedSms={handleDeleteFailedSms}
+          treasuryTransfers={treasuryTransfers}
+          onUpdateTreasuryTransfers={handleUpdateTreasuryTransfers}
         />
       </Suspense>
     </div>

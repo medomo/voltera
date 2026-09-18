@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import html2canvas from 'html2canvas';
-import { Subscriber, MeterReading, Payment, User, SystemSettings, AuditLog, TechnicalRequest, SmsTemplate, FailedSmsItem } from '../types';
+import { Subscriber, MeterReading, Payment, User, SystemSettings, AuditLog, TechnicalRequest, SmsTemplate, FailedSmsItem, TreasuryTransfer } from '../types';
 import { 
   Zap, LogOut, Search, UserRound, Calculator, Banknote, 
   Receipt, FileText, CheckCircle2, AlertTriangle, AlertCircle, Printer, Clock, FilePlus, CreditCard,
@@ -71,6 +71,8 @@ interface CollectorDashboardProps {
   smsTemplates?: SmsTemplate[];
   failedSms?: FailedSmsItem[];
   onDeleteFailedSms?: (id: string) => void;
+  treasuryTransfers?: TreasuryTransfer[];
+  onUpdateTreasuryTransfers?: (trfs: TreasuryTransfer[]) => void;
 }
 
 export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
@@ -98,6 +100,8 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
   smsTemplates = [],
   failedSms = [],
   onDeleteFailedSms,
+  treasuryTransfers = [],
+  onUpdateTreasuryTransfers,
 }) => {
   const [activeTab, setActiveTab] = useState<'reading' | 'master_reading' | 'payment' | 'statement' | 'history' | 'map'>('reading');
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -4732,6 +4736,9 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
         dailyGoal={dailyGoal}
         remainingSubscribersCount={remainingSubscribersToVisit}
         progressPercent={progressPercent}
+        treasuryTransfers={treasuryTransfers}
+        onUpdateTreasuryTransfers={onUpdateTreasuryTransfers}
+        onAddAuditLog={onAddAuditLog}
         onPrintShiftReport={() => {
           setPrintingJob({
             type: 'shift_report',

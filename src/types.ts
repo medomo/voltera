@@ -533,6 +533,32 @@ export interface ConnectionMaterialItem {
   notes?: string;
 }
 
+export interface ConnectionInstallment {
+  id: string;
+  date: string;
+  amount: number;
+  paymentMethod: 'cash' | 'bank_transfer' | string;
+  bankAccountId?: string;
+  notes?: string;
+  recordedBy?: string;
+  receiptNumber?: string;
+}
+
+export interface ConnectionTemplate {
+  id: string;
+  title: string;
+  serviceType: 'new_connection' | 'phase_upgrade' | 'relocation' | 'reconnect' | 'meter_replacement' | 'maintenance' | string;
+  badge: string;
+  tariffType: 'residential' | 'commercial' | 'industrial' | 'agricultural' | string;
+  connectionFee: number;
+  meterCost: number;
+  insuranceDeposit: number;
+  installationLaborFee: number;
+  defaultMaterials: ConnectionMaterialItem[];
+  description?: string;
+  icon?: string;
+}
+
 export interface ServiceConnection {
   id: string;
   voucherNo?: string; // رقم السند / الطلب الرسمي مثل CON-2026-001
@@ -555,6 +581,8 @@ export interface ServiceConnection {
   totalFee: number;
   paidAmount: number;
   remainingAmount?: number;
+  installments?: ConnectionInstallment[]; // سجل الدفعات والأقساط المسددة
+  templateId?: string; // معرف القالب المستخدم
   date: string;
   materialsUsed: string;
   materialsList?: ConnectionMaterialItem[]; // قائمة تفصيلية بالمواد والتجهيزات المصروفة

@@ -7,6 +7,7 @@ import {
 } from '../types';
 import { AccountingJournalTable } from './AccountingJournalTable';
 import { BalanceReconciliationModal } from './BalanceReconciliationModal';
+import { ServiceConnectionManager } from './ServiceConnectionManager';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid, BarChart, Bar, Cell } from 'recharts';
 import { exportToCSV, printData, safePrint } from '../utils/exportUtils';
 import { tafqeetArabic } from '../utils/numberToWords';
@@ -1180,7 +1181,20 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
 
   const handleAddTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTransfer.amount || !newTransfer.fromAccount || !newTransfer.toAccount) return;
+    if (!newTransfer.amount || !newTransfer.fromAccount || !newTransfer.toAccount) {
+      alert('يرجى تعبئة جميع بيانات السند المطلوبة');
+      return;
+    }
+
+    if (newTransfer.fromAccount.trim() === newTransfer.toAccount.trim()) {
+      alert('لا يمكن التحويل من وإلى نفس الحساب أو الصندوق! يرجى اختيار حسابين مختلفين.');
+      return;
+    }
+
+    if (Number(newTransfer.amount) <= 0) {
+      alert('يجب أن يكون مبلغ التحويل أكبر من الصفر');
+      return;
+    }
 
     const trf: TreasuryTransfer = {
       id: Date.now().toString(),
@@ -1190,7 +1204,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
       toAccount: newTransfer.toAccount,
       amount: Number(newTransfer.amount),
       notes: newTransfer.notes || 'تحويل مالي بين الحسابات',
-      recordedBy: currentUser.name
+      recordedBy: currentUser.name || currentUser.username || 'مدير النظام'
     };
 
     const updated = [trf, ...treasuryTransfers];
@@ -1213,6 +1227,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
     }
 
     setShowAddTransfer(false);
+    setPrintableTransferVoucher(trf);
     setNewTransfer({
       date: new Date().toISOString().split('T')[0],
       fromAccount: 'الصندوق الرئيسي (الكاش)',
@@ -1398,15 +1413,22 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
     // 7. Treasury Transfers
     treasuryTransfers.forEach((trf, idx) => {
       if (!trf.isRejected && (trf as any).status !== 'rejected') {
+        const getAccountCode = (accName: string) => {
+          const lower = (accName || '').toLowerCase();
+          if (lower.includes('الرئيسي') || lower.includes('الكاش')) return '1010';
+          if (lower.includes('الكريمي') || lower.includes('بنك') || lower.includes('جيب') || lower.includes('محفظة') || lower.includes('الأهلي') || lower.includes('الاهلي')) return '1020';
+          return '1030';
+        };
+
         list.push({
           id: `trf-${trf.id}`,
           voucherNumber: trf.transferNumber,
           date: trf.date,
           type: 'transfer',
           typeLabel: 'سند تحويل مالي',
-          debitAccountCode: '1010',
+          debitAccountCode: getAccountCode(trf.toAccount),
           debitAccountName: `حـ/ ${trf.toAccount}`,
-          creditAccountCode: '1010',
+          creditAccountCode: getAccountCode(trf.fromAccount),
           creditAccountName: `حـ/ ${trf.fromAccount}`,
           amount: trf.amount,
           description: trf.notes,
@@ -1647,8 +1669,14 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
 
     if (from.includes(collectorCanonicalName)) return true;
 
+    // Remove any prefix like "صندوق المحصل: " or "عُهدة المحصل: " or "عهدة المحصل: "
+    const cleanedFrom = from.replace(/^(?:صندوق|عُهدة|عهدة)\s*المحصل[:\s]*/i, '').trim();
+    if (cleanedFrom && (getCanonicalCollectorName(cleanedFrom) === collectorCanonicalName || cleanedFrom.includes(collectorCanonicalName))) {
+      return true;
+    }
+
     const simpleName = collectorCanonicalName.replace(/\s*\([^)]*\)/g, '').trim();
-    if (simpleName && from.includes(simpleName)) return true;
+    if (simpleName && (from.includes(simpleName) || cleanedFrom.includes(simpleName))) return true;
 
     // Check linked user
     const matchedUser = users.find(u => 
@@ -1658,6 +1686,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
     if (matchedUser) {
       if (matchedUser.username && from.includes(matchedUser.username)) return true;
       if (matchedUser.id && from.includes(matchedUser.id)) return true;
+      if (matchedUser.name && from.includes(matchedUser.name)) return true;
     }
 
     // Check linked employee
@@ -1668,6 +1697,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
     if (matchedEmp) {
       if (matchedEmp.username && from.includes(matchedEmp.username)) return true;
       if (matchedEmp.id && from.includes(matchedEmp.id)) return true;
+      if (matchedEmp.name && from.includes(matchedEmp.name)) return true;
     }
 
     return false;
@@ -1706,8 +1736,8 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
     // 4. Anyone who has recorded treasury transfers from their box
     treasuryTransfers.forEach(t => {
       const from = t.fromAccount || '';
-      if (from.includes('صندوق المحصل:') || from.includes('صندوق المحصل ')) {
-        const extracted = from.replace(/^.*صندوق المحصل[:\s]*/, '').trim();
+      if (from.includes('المحصل') || from.includes('عهدة')) {
+        const extracted = from.replace(/^.*(?:صندوق|عُهدة|عهدة)\s*المحصل[:\s]*/i, '').trim();
         if (extracted && extracted !== 'الميداني') {
           list.add(getCanonicalCollectorName(extracted));
         }
@@ -1726,6 +1756,14 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
       'محفظة جيب الإلكترونية',
       'حساب البنك الأهلي'
     ];
+    if (settings.bankAccounts && Array.isArray(settings.bankAccounts)) {
+      settings.bankAccounts.forEach(acc => {
+        const name = acc.accountName ? `${acc.bankName} - ${acc.accountName}` : acc.bankName;
+        if (name && !list.includes(name)) {
+          list.push(name);
+        }
+      });
+    }
     collectorsList.forEach(col => {
       const boxName = `صندوق المحصل: ${col}`;
       if (!list.includes(boxName)) {
@@ -1733,7 +1771,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
       }
     });
     return list;
-  }, [collectorsList]);
+  }, [collectorsList, settings.bankAccounts]);
 
   const collectorsAccountSummary = useMemo(() => {
     const isAllMonths = selectedTreasuryMonth === 'all';
@@ -1767,20 +1805,26 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
       const colPeriodTrfs = periodTransfers.filter(t => isTransferFromCollector(t, collectorName));
       const totalCollected = colPeriodPays.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
       const totalTransferred = colPeriodTrfs.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const cashCollected = colPeriodPays.filter(p => (p.paymentMethod || 'cash') === 'cash').reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+      const electronicCollected = totalCollected - cashCollected;
 
       // Period ending balance (closing balance of that month)
       const colCumPays = cumulativePayments.filter(p => isPaymentByCollector(p, collectorName));
       const colCumTrfs = cumulativeTransfers.filter(t => isTransferFromCollector(t, collectorName));
       const cumCollected = colCumPays.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
       const cumTransferred = colCumTrfs.reduce((sum, t) => sum + (t.amount || 0), 0);
-      const periodEndingBalance = Math.max(0, cumCollected - cumTransferred);
+      const periodEndingBalance = cumCollected - cumTransferred;
 
       // Live all-time current pending balance
       const colAllPays = allTimeActivePayments.filter(p => isPaymentByCollector(p, collectorName));
       const colAllTrfs = allTimeActiveTransfers.filter(t => isTransferFromCollector(t, collectorName));
       const allCollected = colAllPays.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
       const allTransferred = colAllTrfs.reduce((sum, t) => sum + (t.amount || 0), 0);
-      const currentPendingBalance = Math.max(0, allCollected - allTransferred);
+      const currentPendingBalance = allCollected - allTransferred;
+
+      // All-time cash vs electronic breakdown
+      const allCashCollected = colAllPays.filter(p => (p.paymentMethod || 'cash') === 'cash').reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+      const allElectronicCollected = allCollected - allCashCollected;
 
       // Sort payments by date descending for last payment date
       const sortedPays = [...colAllPays].sort((a, b) => (b.paymentDate || '').localeCompare(a.paymentDate || ''));
@@ -1789,10 +1833,14 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
         collectorName,
         totalCollected,
         totalTransferred,
+        cashCollected,
+        electronicCollected,
         pendingBalance: isAllMonths ? currentPendingBalance : periodEndingBalance,
         currentPendingBalance,
         allTimeCollected: allCollected,
         allTimeTransferred: allTransferred,
+        allCashCollected,
+        allElectronicCollected,
         receiptsCount: colPeriodPays.length,
         allTimeReceiptsCount: colAllPays.length,
         transfersCount: colPeriodTrfs.length,
@@ -1803,53 +1851,83 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
 
   const treasuriesSummary = useMemo(() => {
     const isAllMonths = selectedTreasuryMonth === 'all';
-    const filteredPayments = payments.filter(p => !p.isRejected && (isAllMonths || matchMonth(p.paymentDate, selectedTreasuryMonth)));
-    const filteredConnections = connections.filter(c => !c.isRejected && (c as any).status !== 'rejected' && (isAllMonths || matchMonth(c.date || (c as any).createdAt, selectedTreasuryMonth)));
-    const filteredExpenses = expenses.filter(e => !e.isRejected && (e as any).status !== 'rejected' && (isAllMonths || matchMonth(e.date || (e as any).createdAt, selectedTreasuryMonth)));
-    const filteredEmployeeTxs = employeeTxs.filter(e => !e.isRejected && (e as any).status !== 'rejected' && (isAllMonths || matchMonth(e.date || (e as any).createdAt, selectedTreasuryMonth)));
-    const filteredPurchases = purchases.filter(p => !p.isRejected && (p as any).status !== 'rejected' && (isAllMonths || matchMonth(p.date || (p as any).createdAt, selectedTreasuryMonth)));
-    const filteredTransfers = treasuryTransfers.filter(t => !t.isRejected && (t as any).status !== 'rejected' && (isAllMonths || matchMonth(t.date || (t as any).createdAt, selectedTreasuryMonth)));
 
-    const totalCollectedCash = filteredPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0);
-    const totalConnCash = filteredConnections.reduce((sum, c) => sum + (c.paidAmount || 0), 0);
-    const totalExpOut = filteredExpenses.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalPayOut = filteredEmployeeTxs.reduce((sum, e) => sum + (e.amount || 0), 0);
-    const totalPurchasesCashOut = filteredPurchases.reduce((sum, p) => {
+    // Cumulative filters up to the end of selected month (balance sheet)
+    const cumPayments = payments.filter(p => !p.isRejected && (isAllMonths || (p.paymentDate || '').substring(0, 7) <= selectedTreasuryMonth));
+    const cumConnections = connections.filter(c => !c.isRejected && (c as any).status !== 'rejected' && (isAllMonths || (c.date || (c as any).createdAt || '').substring(0, 7) <= selectedTreasuryMonth));
+    const cumExpenses = expenses.filter(e => !e.isRejected && (e as any).status !== 'rejected' && (isAllMonths || (e.date || (e as any).createdAt || '').substring(0, 7) <= selectedTreasuryMonth));
+    const cumEmployeeTxs = employeeTxs.filter(e => !e.isRejected && (e as any).status !== 'rejected' && (isAllMonths || (e.date || (e as any).createdAt || '').substring(0, 7) <= selectedTreasuryMonth));
+    const cumPurchases = purchases.filter(p => !p.isRejected && (p as any).status !== 'rejected' && (isAllMonths || (p.date || (p as any).createdAt || '').substring(0, 7) <= selectedTreasuryMonth));
+    const cumTransfers = treasuryTransfers.filter(t => !t.isRejected && (t as any).status !== 'rejected' && (isAllMonths || (t.date || t.createdAt || '').substring(0, 7) <= selectedTreasuryMonth));
+
+    // Period specific filters (for income/flow metrics)
+    const periodPayments = payments.filter(p => !p.isRejected && (isAllMonths || matchMonth(p.paymentDate, selectedTreasuryMonth)));
+    const periodTransfers = treasuryTransfers.filter(t => !t.isRejected && (t as any).status !== 'rejected' && (isAllMonths || matchMonth(t.date || t.createdAt, selectedTreasuryMonth)));
+    const periodExpenses = expenses.filter(e => !e.isRejected && (e as any).status !== 'rejected' && (isAllMonths || matchMonth(e.date || (e as any).createdAt, selectedTreasuryMonth)));
+    const periodEmployeeTxs = employeeTxs.filter(e => !e.isRejected && (e as any).status !== 'rejected' && (isAllMonths || matchMonth(e.date || (e as any).createdAt, selectedTreasuryMonth)));
+
+    // Outflow calculations cumulative
+    const totalExpOut = cumExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const totalPayOut = cumEmployeeTxs.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const totalPurchasesCashOut = cumPurchases.reduce((sum, p) => {
       const pd = p.paidAmount !== undefined ? Number(p.paidAmount) : (p.paymentType === 'cash' ? Number(p.amount) : 0);
       return sum + (pd || 0);
     }, 0);
 
-    // Filter collector transfers
-    const collectorTransfersOut = filteredTransfers
-      .filter(t => {
-        const from = t.fromAccount || '';
-        return from.includes('المحصل') || from.includes('عهدة') || collectorsList.some(col => from.includes(col));
-      })
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    // Direct office cash collections (payments marked as cash where receivedBy is not a field collector)
+    const directOfficeCash = cumPayments
+      .filter(p => (p.paymentMethod || 'cash') === 'cash' && !collectorsList.some(col => isPaymentByCollector(p, col)))
+      .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
 
-    // Main vault movements
-    const mainVaultIn = filteredTransfers.filter(t => t.toAccount.includes('الرئيسي')).reduce((sum, t) => sum + (t.amount || 0), 0);
-    const mainVaultOut = filteredTransfers.filter(t => t.fromAccount.includes('الرئيسي')).reduce((sum, t) => sum + (t.amount || 0), 0);
+    const totalConnCash = cumConnections
+      .filter(c => (c.paymentMethod || 'cash') === 'cash')
+      .reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+
+    // Transfers into Main Vault
+    const mainVaultTransfersIn = cumTransfers.filter(t => t.toAccount.includes('الرئيسي')).reduce((sum, t) => sum + (t.amount || 0), 0);
+    const mainVaultTransfersOut = cumTransfers.filter(t => t.fromAccount.includes('الرئيسي')).reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    // Main vault balance
+    const mainVault = Math.max(0, mainVaultTransfersIn + directOfficeCash + totalConnCash - (totalExpOut + totalPayOut + totalPurchasesCashOut + mainVaultTransfersOut));
 
     // Bank account movements
-    const bankIn = filteredTransfers.filter(t => t.toAccount.includes('الكريمي') || t.toAccount.includes('بنك') || t.toAccount.includes('جيب') || t.toAccount.includes('الأهلي')).reduce((sum, t) => sum + (t.amount || 0), 0);
-    const bankOut = filteredTransfers.filter(t => t.fromAccount.includes('الكريمي') || t.fromAccount.includes('بنك') || t.fromAccount.includes('جيب') || t.fromAccount.includes('الأهلي')).reduce((sum, t) => sum + (t.amount || 0), 0);
+    const isBankOrWallet = (acc: string) => {
+      const a = (acc || '').toLowerCase();
+      return a.includes('الكريمي') || a.includes('بنك') || a.includes('جيب') || a.includes('محفظة') || a.includes('الأهلي') || a.includes('الاهلي') || a.includes('حساب');
+    };
 
-    // Sum of collectors boxes
-    const collectorsVault = collectorsAccountSummary.reduce((sum, c) => sum + c.pendingBalance, 0);
-    const mainVault = Math.max(0, mainVaultIn + totalConnCash - (totalExpOut + totalPayOut + totalPurchasesCashOut + mainVaultOut));
-    const bankVault = Math.max(0, bankIn - bankOut);
+    const bankTransfersIn = cumTransfers.filter(t => isBankOrWallet(t.toAccount)).reduce((sum, t) => sum + (t.amount || 0), 0);
+    const bankTransfersOut = cumTransfers.filter(t => isBankOrWallet(t.fromAccount)).reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    // Direct electronic payments from subscribers
+    const directBankPayments = cumPayments
+      .filter(p => p.paymentMethod === 'transfer' || p.paymentMethod === 'e-wallet' || p.paymentMethod === 'bank')
+      .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+
+    const directBankConnections = cumConnections
+      .filter(c => c.paymentMethod === 'transfer' || c.paymentMethod === 'e-wallet' || c.paymentMethod === 'bank')
+      .reduce((sum, c) => sum + (c.paidAmount || 0), 0);
+
+    const bankVault = Math.max(0, bankTransfersIn + directBankPayments + directBankConnections - bankTransfersOut);
+
+    // Sum of collectors boxes (pending custody)
+    const collectorsVault = collectorsAccountSummary.reduce((sum, c) => sum + Math.max(0, c.pendingBalance), 0);
     const totalNetTreasury = collectorsVault + mainVault + bankVault;
+
+    // Period metrics
+    const periodCollectorTransfers = periodTransfers
+      .filter(t => t.fromAccount.includes('المحصل') || t.fromAccount.includes('عهدة') || collectorsList.some(col => isTransferFromCollector(t, col)))
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
 
     return {
       collectorsVault,
       mainVault,
       bankVault,
       totalNetTreasury,
-      totalCollectedCash,
-      totalExpOut,
-      totalPayOut,
-      totalCollectorTransfers: collectorTransfersOut
+      totalCollectedCash: periodPayments.reduce((sum, p) => sum + (p.amountPaid || 0), 0),
+      totalExpOut: periodExpenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
+      totalPayOut: periodEmployeeTxs.reduce((sum, e) => sum + (Number(e.amount) || 0), 0),
+      totalCollectorTransfers: periodCollectorTransfers
     };
   }, [payments, connections, expenses, employeeTxs, purchases, treasuryTransfers, selectedTreasuryMonth, collectorsAccountSummary, collectorsList]);
 
@@ -1857,26 +1935,40 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
   const collectorStatementData = useMemo(() => {
     const selectedName = statementCollector;
 
+    // Separate prior transactions (for opening balance) from period transactions
+    const hasFromDate = Boolean(statementFromDate);
+    const hasToDate = Boolean(statementToDate);
+
+    // Prior transactions for opening balance
+    const priorPays = hasFromDate
+      ? payments.filter(p => !p.isRejected && (selectedName === 'all' || isPaymentByCollector(p, selectedName)) && (p.paymentDate || '').slice(0, 10) < statementFromDate)
+      : [];
+    const priorTrfs = hasFromDate
+      ? treasuryTransfers.filter(t => !t.isRejected && (t as any).status !== 'rejected' && (selectedName === 'all' || isTransferFromCollector(t, selectedName)) && (t.date || t.createdAt || '').slice(0, 10) < statementFromDate)
+      : [];
+
+    const openingBalance = priorPays.reduce((sum, p) => sum + (p.amountPaid || 0), 0) - priorTrfs.reduce((sum, t) => sum + (t.amount || 0), 0);
+
     let filteredPays = payments.filter(p => !p.isRejected);
     if (selectedName !== 'all') {
       filteredPays = filteredPays.filter(p => isPaymentByCollector(p, selectedName));
     }
-    if (statementFromDate) {
-      filteredPays = filteredPays.filter(p => p.paymentDate >= statementFromDate);
+    if (hasFromDate) {
+      filteredPays = filteredPays.filter(p => (p.paymentDate || '').slice(0, 10) >= statementFromDate);
     }
-    if (statementToDate) {
-      filteredPays = filteredPays.filter(p => p.paymentDate <= statementToDate);
+    if (hasToDate) {
+      filteredPays = filteredPays.filter(p => (p.paymentDate || '').slice(0, 10) <= statementToDate);
     }
 
     let filteredTrfs = treasuryTransfers.filter(t => !t.isRejected && (t as any).status !== 'rejected');
     if (selectedName !== 'all') {
       filteredTrfs = filteredTrfs.filter(t => isTransferFromCollector(t, selectedName));
     }
-    if (statementFromDate) {
-      filteredTrfs = filteredTrfs.filter(t => (t.date || t.createdAt || '') >= statementFromDate);
+    if (hasFromDate) {
+      filteredTrfs = filteredTrfs.filter(t => (t.date || t.createdAt || '').slice(0, 10) >= statementFromDate);
     }
-    if (statementToDate) {
-      filteredTrfs = filteredTrfs.filter(t => (t.date || t.createdAt || '') <= statementToDate);
+    if (hasToDate) {
+      filteredTrfs = filteredTrfs.filter(t => (t.date || t.createdAt || '').slice(0, 10) <= statementToDate);
     }
 
     type StatementRow = {
@@ -1910,7 +2002,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
         refNo: t.transferNumber,
         type: 'handover' as const,
         typeLabel: 'سند توريد وتسليم خزينة',
-        collectorName: getCanonicalCollectorName(t.fromAccount.replace(/^.*صندوق المحصل[:\s]*/, '')),
+        collectorName: getCanonicalCollectorName(t.fromAccount.replace(/^.*(?:صندوق|عُهدة|عهدة)\s*المحصل[:\s]*/i, '')),
         description: `تسليم وتوريد مبالغ إلى: ${t.toAccount} (${t.notes || 'توريد كاش'})`,
         debit: 0,
         credit: t.amount
@@ -1920,7 +2012,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
     // Sort chronologically ascending to compute running balance
     rows.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    let running = 0;
+    let running = openingBalance;
     const ledgerWithBalance = rows.map(r => {
       running += (r.debit - r.credit);
       return {
@@ -1942,10 +2034,11 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
 
     const totalDebit = filteredPays.reduce((s, p) => s + (p.amountPaid || 0), 0);
     const totalCredit = filteredTrfs.reduce((s, t) => s + (t.amount || 0), 0);
-    const netCustodyBalance = totalDebit - totalCredit;
+    const netCustodyBalance = openingBalance + totalDebit - totalCredit;
 
     return {
       ledger: displayLedger,
+      openingBalance,
       totalDebit,
       totalCredit,
       netCustodyBalance,
@@ -3140,7 +3233,17 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
                 </div>
 
                 {/* KPI Metrics Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className={`grid grid-cols-1 ${statementFromDate ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
+                  {statementFromDate && (
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                      <span className="text-xs text-slate-400 font-bold block mb-1">الرصيد الافتتاحي السابق للفترة:</span>
+                      <span className="text-2xl font-black text-violet-400 font-mono block">
+                        {collectorStatementData.openingBalance.toLocaleString()} <span className="text-xs text-slate-500 font-sans">{settings.currency}</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-bold mt-1 block">رصيد ما قبل {statementFromDate}</span>
+                    </div>
+                  )}
+
                   <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
                     <span className="text-xs text-slate-400 font-bold block mb-1">إجمالي المقبوضات (مدين):</span>
                     <span className="text-2xl font-black text-sky-400 font-mono block">
@@ -3158,11 +3261,11 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
                   </div>
 
                   <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-                    <span className="text-xs text-slate-400 font-bold block mb-1">صافي الرصيد بعهدة المحصل حالياً:</span>
+                    <span className="text-xs text-slate-400 font-bold block mb-1">الرصيد الختامي المتبقي بعهدته:</span>
                     <span className="text-2xl font-black text-amber-400 font-mono block">
                       {collectorStatementData.netCustodyBalance.toLocaleString()} <span className="text-xs text-slate-500 font-sans">{settings.currency}</span>
                     </span>
-                    <span className="text-[11px] text-slate-500 font-bold mt-1 block">العهدة المتبقية غير الموردة</span>
+                    <span className="text-[11px] text-slate-500 font-bold mt-1 block">العهدة المتبقية بنهاية الفترة</span>
                   </div>
                 </div>
 
@@ -3299,73 +3402,142 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
             )}
 
             {/* SUBTAB 5: DAILY CASH FLOW & RECONCILIATION */}
-            {treasurySubTab === 'daily' && (
-              <div className="space-y-6">
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
-                    <div>
-                      <h3 className="font-black text-white text-base flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-amber-500" />
-                        <span>التدفقات النقدية والجرد اليومي (Daily Cash Reconciliation)</span>
-                      </h3>
-                      <p className="text-xs text-slate-400 font-bold mt-1">
-                        تدقيق ومطابقة المقبوضات والتوريدات اليومية لكل محصل بتاريخ محدد
-                      </p>
+            {treasurySubTab === 'daily' && (() => {
+              const dailyData = collectorsList.map(name => {
+                const dailyPays = payments.filter(p => !p.isRejected && isPaymentByCollector(p, name) && (p.paymentDate || '').slice(0, 10) === dailyFlowDate);
+                const dailyTrfs = treasuryTransfers.filter(t => !t.isRejected && (t as any).status !== 'rejected' && isTransferFromCollector(t, name) && (t.date || t.createdAt || '').slice(0, 10) === dailyFlowDate);
+
+                const dailyIncome = dailyPays.reduce((s, p) => s + (p.amountPaid || 0), 0);
+                const dailyOutcome = dailyTrfs.reduce((s, t) => s + (t.amount || 0), 0);
+                const netDaily = dailyIncome - dailyOutcome;
+
+                return {
+                  name,
+                  dailyIncome,
+                  dailyOutcome,
+                  netDaily,
+                  receiptsCount: dailyPays.length,
+                  transfersCount: dailyTrfs.length
+                };
+              });
+
+              const totalDailyCollected = dailyData.reduce((s, d) => s + d.dailyIncome, 0);
+              const totalDailyTransferred = dailyData.reduce((s, d) => s + d.dailyOutcome, 0);
+              const totalDailyNet = totalDailyCollected - totalDailyTransferred;
+
+              return (
+                <div className="space-y-6">
+                  {/* Daily KPI summary cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                      <span className="text-xs text-slate-400 font-bold block mb-1">إجمالي تحصيلات يوم ({dailyFlowDate}):</span>
+                      <span className="text-2xl font-black text-sky-400 font-mono block">
+                        {totalDailyCollected.toLocaleString()} <span className="text-xs text-slate-500 font-sans">{settings.currency}</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-bold mt-1 block">مقبوضات كاش من المشتركين</span>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs font-bold text-slate-400">تاريخ الجرد:</label>
-                      <input
-                        type="date"
-                        value={dailyFlowDate}
-                        onChange={(e) => setDailyFlowDate(e.target.value)}
-                        className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-amber-500"
-                      />
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                      <span className="text-xs text-slate-400 font-bold block mb-1">إجمالي التوريدات المستلمة لليوم:</span>
+                      <span className="text-2xl font-black text-emerald-400 font-mono block">
+                        {totalDailyTransferred.toLocaleString()} <span className="text-xs text-slate-500 font-sans">{settings.currency}</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-bold mt-1 block">توريدات مودعة بالخزينة/البنك</span>
+                    </div>
+
+                    <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+                      <span className="text-xs text-slate-400 font-bold block mb-1">صافي الحركة اليومية المعلقة:</span>
+                      <span className="text-2xl font-black text-amber-400 font-mono block">
+                        {totalDailyNet.toLocaleString()} <span className="text-xs text-slate-500 font-sans">{settings.currency}</span>
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-bold mt-1 block">
+                        {totalDailyNet === 0 ? 'كافة توريدات اليوم مطابقة ومستلمة' : 'متبقي بعهدة المحصلين لم يورد'}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto rounded-xl border border-slate-800">
-                    <table className="w-full text-xs text-right">
-                      <thead className="bg-slate-950 text-slate-400 font-bold border-b border-slate-800">
-                        <tr>
-                          <th className="p-3">اسم المحصل</th>
-                          <th className="p-3 text-center">تحصيلات اليوم ({dailyFlowDate})</th>
-                          <th className="p-3 text-center">توريدات اليوم لم الكاش</th>
-                          <th className="p-3 text-center">صافي الحركة اليومية</th>
-                          <th className="p-3 text-center">حالة المطابقة</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60 font-bold text-slate-200">
-                        {collectorsList.map((name) => {
-                          const dailyPays = payments.filter(p => !p.isRejected && (p.receivedBy === name || (p as any).collectorName === name) && p.paymentDate === dailyFlowDate);
-                          const dailyTrfs = treasuryTransfers.filter(t => t.fromAccount.includes(name) && t.date === dailyFlowDate);
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-5">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4">
+                      <div>
+                        <h3 className="font-black text-white text-base flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-amber-500" />
+                          <span>التدفقات النقدية والجرد اليومي (Daily Cash Reconciliation)</span>
+                        </h3>
+                        <p className="text-xs text-slate-400 font-bold mt-1">
+                          تدقيق ومطابقة المقبوضات والتوريدات اليومية لكل محصل بتاريخ محدد
+                        </p>
+                      </div>
 
-                          const dailyIncome = dailyPays.reduce((s, p) => s + p.amountPaid, 0);
-                          const dailyOutcome = dailyTrfs.reduce((s, t) => s + t.amount, 0);
-                          const netDaily = dailyIncome - dailyOutcome;
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-slate-400">تاريخ الجرد:</label>
+                        <input
+                          type="date"
+                          value={dailyFlowDate}
+                          onChange={(e) => setDailyFlowDate(e.target.value)}
+                          className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-amber-500"
+                        />
+                      </div>
+                    </div>
 
-                          return (
-                            <tr key={name} className="hover:bg-slate-800/40 transition-colors">
-                              <td className="p-3 font-bold text-white">{name}</td>
-                              <td className="p-3 text-center font-mono font-black text-sky-400">{dailyIncome.toLocaleString()} {settings.currency}</td>
-                              <td className="p-3 text-center font-mono font-black text-emerald-400">{dailyOutcome.toLocaleString()} {settings.currency}</td>
-                              <td className="p-3 text-center font-mono font-black text-amber-400">{netDaily.toLocaleString()} {settings.currency}</td>
+                    <div className="overflow-x-auto rounded-xl border border-slate-800">
+                      <table className="w-full text-xs text-right">
+                        <thead className="bg-slate-950 text-slate-400 font-bold border-b border-slate-800">
+                          <tr>
+                            <th className="p-3">اسم المحصل</th>
+                            <th className="p-3 text-center">عدد الإيصالات</th>
+                            <th className="p-3 text-center text-sky-400">تحصيلات اليوم ({dailyFlowDate})</th>
+                            <th className="p-3 text-center text-emerald-400">توريدات اليوم للخزينة</th>
+                            <th className="p-3 text-center text-amber-400">صافي الحركة اليومية</th>
+                            <th className="p-3 text-center">حالة المطابقة</th>
+                            <th className="p-3 text-center">إجراء</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60 font-bold text-slate-200">
+                          {dailyData.map((d) => (
+                            <tr key={d.name} className="hover:bg-slate-800/40 transition-colors">
+                              <td className="p-3 font-bold text-white">{d.name}</td>
+                              <td className="p-3 text-center font-mono text-slate-400">{d.receiptsCount}</td>
+                              <td className="p-3 text-center font-mono font-black text-sky-400">{d.dailyIncome.toLocaleString()} {settings.currency}</td>
+                              <td className="p-3 text-center font-mono font-black text-emerald-400">{d.dailyOutcome.toLocaleString()} {settings.currency}</td>
+                              <td className="p-3 text-center font-mono font-black text-amber-400">{d.netDaily.toLocaleString()} {settings.currency}</td>
                               <td className="p-3 text-center">
                                 <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
-                                  netDaily === 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                                  d.netDaily === 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
                                 }`}>
-                                  {netDaily === 0 ? 'مصفى ومستلم بالكامل' : 'يوجد رصيد بانتظار التوريد'}
+                                  {d.netDaily === 0 ? 'مصفى ومستلم بالكامل' : 'يوجد رصيد بانتظار التوريد'}
                                 </span>
                               </td>
+                              <td className="p-3 text-center">
+                                {d.netDaily > 0 && (
+                                  <button
+                                    onClick={() => {
+                                      setHandoverTarget({
+                                        collectorName: d.name,
+                                        pendingAmount: d.netDaily,
+                                        receiptsCount: d.receiptsCount
+                                      });
+                                      setHandoverForm({
+                                        amount: d.netDaily,
+                                        toAccount: 'الصندوق الرئيسي (الكاش)',
+                                        notes: `توريد حصيلة التحصيل اليومي الميداني ليوم ${dailyFlowDate}`,
+                                        receiverName: currentUser.name || currentUser.username || 'مدير النظام'
+                                      });
+                                    }}
+                                    className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                                  >
+                                    تسجيل توريد
+                                  </button>
+                                )}
+                              </td>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </motion.div>
         )}
 
@@ -3757,7 +3929,26 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
         })()}
 
         {/* TAB 8: SERVICE CONNECTION REVENUE (إيرادات إدخال وتوصيل الخدمة وتأمين العدادات) */}
-        {activeTab === 'connections' && (() => {
+        {activeTab === 'connections' && (
+          <ServiceConnectionManager
+            connections={connections}
+            onUpdateConnections={onUpdateConnections}
+            settings={settings}
+            onUpdateSettings={onUpdateSettings}
+            subscribers={subscribers}
+            onUpdateSubscribers={onUpdateSubscribers}
+            inventory={inventory}
+            onUpdateInventory={onUpdateInventory}
+            inventoryTransactions={inventoryTransactions}
+            onUpdateInventoryTransactions={onUpdateInventoryTransactions}
+            employees={employees}
+            currentUser={currentUser}
+            onAddAuditLog={onAddAuditLog}
+            availableMonths={availableMonths}
+          />
+        )}
+
+        {false && activeTab === 'connections' && (() => {
           // Filters calculation
           const filteredConnections = connections.filter(c => {
             // Search query
@@ -7554,10 +7745,9 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
                       onChange={e => setHandoverForm({...handoverForm, toAccount: e.target.value})}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-white font-bold focus:outline-none focus:border-amber-500"
                     >
-                      <option value="الصندوق الرئيسي (الكاش)">الصندوق الرئيسي (الكاش)</option>
-                      <option value="حساب بنك الكريمي">حساب بنك الكريمي</option>
-                      <option value="محفظة جيب الإلكترونية">محفظة جيب الإلكترونية</option>
-                      <option value="حساب البنك الأهلي">حساب البنك الأهلي</option>
+                      {availableAccounts.filter(acc => !acc.startsWith('صندوق المحصل') && !acc.startsWith('عهدة')).map(acc => (
+                        <option key={acc} value={acc}>{acc}</option>
+                      ))}
                     </select>
                   </div>
 

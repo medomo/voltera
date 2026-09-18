@@ -46,6 +46,7 @@ import { StationDirectoryManager } from './StationDirectoryManager';
 import { AdminSettingsTariff } from './AdminSettingsTariff';
 import { AdminPostings } from './AdminPostings';
 import { AdminSMSCenter } from './AdminSMSCenter';
+import { ServiceConnectionManager } from './ServiceConnectionManager';
 
 const SectionLoadingFallback = () => (
   <div className="flex flex-col items-center justify-center py-20 px-4 text-center dir-rtl">
@@ -166,7 +167,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onUpdateProfitDistributions,
 }) => {
   // Main Sections
-  type ActiveSection = 'dashboard' | 'subscribers' | 'accounting' | 'debt' | 'zones' | 'roles' | 'inventory' | 'inventory-alerts' | 'inventory-catalog' | 'inventory-transactions' | 'hr-employees' | 'hr-payroll' | 'operations-requests' | 'operations-zones' | 'admin-db' | 'admin-security' | 'admin-settings' | 'station-directory' | 'admin-postings' | 'admin-services' | 'system' | 'sms-templates' | 'sms-subscriptions' | 'sms-send' | 'sms-failed' | 'sms-outbox' | 'sms-gateway' | 'sms-android' | 'android-app' | 'treasury-boxes' | 'treasury-transfers' | 'treasury-statements' | 'treasury-performance' | 'treasury-daily' | 'reporting-subscribers' | 'reporting-financial' | 'reporting-inventory' | 'reporting-hr' | 'reporting-executive' | 'reporting-consumption' | 'reporting-debt' | 'reporting-loss' | 'reporting-statements' | 'reporting-due-balances' | 'partners';
+  type ActiveSection = 'dashboard' | 'subscribers' | 'accounting' | 'service-connections' | 'debt' | 'zones' | 'roles' | 'inventory' | 'inventory-alerts' | 'inventory-catalog' | 'inventory-transactions' | 'hr-employees' | 'hr-payroll' | 'operations-requests' | 'operations-zones' | 'admin-db' | 'admin-security' | 'admin-settings' | 'station-directory' | 'admin-postings' | 'admin-services' | 'system' | 'sms-templates' | 'sms-subscriptions' | 'sms-send' | 'sms-failed' | 'sms-outbox' | 'sms-gateway' | 'sms-android' | 'android-app' | 'treasury-boxes' | 'treasury-transfers' | 'treasury-statements' | 'treasury-performance' | 'treasury-daily' | 'reporting-subscribers' | 'reporting-financial' | 'reporting-inventory' | 'reporting-hr' | 'reporting-executive' | 'reporting-consumption' | 'reporting-debt' | 'reporting-loss' | 'reporting-statements' | 'reporting-due-balances' | 'partners';
+  
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    readings.forEach(r => { if (r.month) months.add(r.month); });
+    payments.forEach(p => { if (p.date) months.add(p.date.substring(0, 7)); });
+    connections.forEach(c => { if (c.date) months.add(c.date.substring(0, 7)); });
+    const currentMonth = new Date().toISOString().substring(0, 7);
+    months.add(currentMonth);
+    return Array.from(months).sort().reverse();
+  }, [readings, payments, connections]);
   
   const getInitialSection = (): ActiveSection => {
     const hash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : '';
@@ -281,8 +292,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
-            <Palette className="w-4 h-4" />
-            <span>تخصيص المظهر وخدمات إضافية</span>
+            <Building2 className="w-4 h-4" />
+            <span>دليل وهوية المحطة</span>
           </button>
 
           <button
@@ -296,6 +307,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <Sliders className="w-4 h-4" />
             <span>تعرفة الكهرباء والأسعار</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('admin-services')}
+            className={`px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              currentSec === 'admin-services'
+                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}
+          >
+            <Printer className="w-4 h-4" />
+            <span>السندات الحرارية والطباعة</span>
           </button>
 
           <button
@@ -335,19 +359,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           >
             <ShieldCheck className="w-4 h-4" />
             <span>الأمان وسجل التدقيق</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveSection('admin-services')}
-            className={`px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-              currentSec === 'admin-services'
-                ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                : 'bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <Printer className="w-4 h-4" />
-            <span>إعدادات السندات الحرارية</span>
           </button>
         </div>
       </div>
@@ -1425,7 +1436,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       id: Date.now().toString(),
       transferNumber: `TRF-${Math.floor(1000 + Math.random() * 9000)}`,
       date: new Date().toISOString().split('T')[0],
-      fromAccount: `عُهدة المحصل: ${collectorName}`,
+      fromAccount: `صندوق المحصل: ${collectorName}`,
       toAccount: 'الصندوق الرئيسي (الكاش)',
       amount: totalAmount,
       notes: `تصفية وتوريد عُهدة التحصيلات الميدانية للمحصل (${collectorName}) - إجمالي ${collectorPays.length} سند`,
@@ -2250,6 +2261,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <span>النظام المحاسبي الشامل</span>
                     </button>
                     <button
+                      onClick={() => { setActiveSection('service-connections'); setSidebarOpen(false); }}
+                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeSection === 'service-connections'
+                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                      <span>إيرادات إدخال الخدمة والاشتراكات</span>
+                    </button>
+                    <button
                       onClick={() => { setActiveSection('admin-postings'); setSidebarOpen(false); }}
                       className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                         activeSection === 'admin-postings'
@@ -3026,6 +3048,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             inventoryTransactions={inventoryTransactions}
             onUpdateInventoryTransactions={onUpdateInventoryTransactions}
             users={users}
+          />
+        )}
+
+        {activeSection === 'service-connections' && (
+          <ServiceConnectionManager
+            connections={connections}
+            onUpdateConnections={onUpdateConnections || (() => {})}
+            settings={settings}
+            onUpdateSettings={onUpdateSettings}
+            subscribers={subscribers}
+            onUpdateSubscribers={onUpdateSubscribers}
+            inventory={inventory}
+            onUpdateInventory={onUpdateInventory}
+            inventoryTransactions={inventoryTransactions}
+            onUpdateInventoryTransactions={onUpdateInventoryTransactions}
+            employees={employees}
+            currentUser={currentUser}
+            onAddAuditLog={onAddAuditLog}
+            availableMonths={availableMonths}
           />
         )}
 

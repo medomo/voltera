@@ -25,6 +25,7 @@ export type ActiveSection =
   | 'station-directory'
   | 'admin-postings'
   | 'admin-services'
+  | 'service-connections'
   | 'system'
   | 'sms-templates'
   | 'sms-subscriptions'

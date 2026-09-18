@@ -5,7 +5,7 @@ import {
   Calendar, ShieldCheck, UserCheck, AlertCircle, FileText, 
   Receipt, ArrowDownToLine, Smartphone, Zap
 } from 'lucide-react';
-import { User, SystemSettings, Payment, MeterReading, Subscriber, AuditLog } from '../types';
+import { User, SystemSettings, Payment, MeterReading, Subscriber, AuditLog, TreasuryTransfer } from '../types';
 import { tafqeetArabic } from '../utils/numberToWords';
 
 interface ShiftSettlementModalProps {
@@ -20,6 +20,9 @@ interface ShiftSettlementModalProps {
   progressPercent: number;
   onAddAuditLog?: (log: AuditLog) => void;
   onTriggerDirectPrint?: () => void;
+  treasuryTransfers?: TreasuryTransfer[];
+  onAddTreasuryTransfer?: (trf: TreasuryTransfer) => void;
+  onUpdateTreasuryTransfers?: (trfs: TreasuryTransfer[]) => void;
 }
 
 export const ShiftSettlementModal: React.FC<ShiftSettlementModalProps> = ({
@@ -33,7 +36,10 @@ export const ShiftSettlementModal: React.FC<ShiftSettlementModalProps> = ({
   dailyGoal,
   progressPercent,
   onAddAuditLog,
-  onTriggerDirectPrint
+  onTriggerDirectPrint,
+  treasuryTransfers,
+  onAddTreasuryTransfer,
+  onUpdateTreasuryTransfers
 }) => {
   const [recipientName, setRecipientName] = useState('أمين الصندوق الرئيسي');
   const [handoverNotes, setHandoverNotes] = useState('');
@@ -184,6 +190,28 @@ export const ShiftSettlementModal: React.FC<ShiftSettlementModalProps> = ({
       localStorage.setItem('voltera_closed_shifts', JSON.stringify(existing.slice(0, 30)));
     } catch (e) {
       console.error(e);
+    }
+
+    // Create formal treasury transfer voucher if cash was collected
+    const handoverAmount = cashTotal > 0 ? cashTotal : totalCollected;
+    if (handoverAmount > 0) {
+      const trfNo = `TRF-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+      const newTrf: TreasuryTransfer = {
+        id: `trf-${Date.now()}`,
+        transferNumber: trfNo,
+        date: new Date().toISOString().split('T')[0],
+        fromAccount: `صندوق المحصل: ${currentUser.name}`,
+        toAccount: recipientName || 'الصندوق الرئيسي (الكاش)',
+        amount: handoverAmount,
+        notes: `توريد إغلاق الوردية للمحصل (${currentUser.name}) إلى (${recipientName}) - نقد كاش (${cashTotal.toLocaleString()} ${settings.currency})${walletTotal > 0 ? ` + محافظ (${walletTotal.toLocaleString()})` : ''}. ${handoverNotes || ''}`.trim(),
+        recordedBy: recipientName || currentUser.name
+      };
+
+      if (onAddTreasuryTransfer) {
+        onAddTreasuryTransfer(newTrf);
+      } else if (onUpdateTreasuryTransfers && treasuryTransfers) {
+        onUpdateTreasuryTransfers([newTrf, ...treasuryTransfers]);
+      }
     }
 
     setIsSaved(true);

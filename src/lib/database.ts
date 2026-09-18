@@ -913,6 +913,13 @@ export function subscribeToFailedSmsFromCloud(callback: (items: FailedSmsItem[])
   }, (err) => handleFirestoreError(err, OperationType.GET, 'failedSms'));
 }
 
+export function subscribeToConnectionsFromCloud(callback: (conns: ServiceConnection[]) => void) {
+  return onSnapshot(collection(db, 'connections'), (snap) => {
+    const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceConnection));
+    callback(list);
+  }, (err) => handleFirestoreError(err, OperationType.GET, 'connections'));
+}
+
 // Single Document / Collection CRUD Operations in Firestore
 export async function syncUserToCloud(user: User) {
   try {
@@ -1644,6 +1651,24 @@ export async function deleteEmployeeTxFromCloud(id: string) {
   }
 }
 
+export async function syncConnectionToCloud(conn: ServiceConnection) {
+  try {
+    if (!conn || !conn.id) return;
+    const cRef = doc(db, 'connections', conn.id);
+    await setDoc(cRef, cleanForFirestore(conn), { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `connections/${conn?.id || 'unknown'}`);
+  }
+}
+
+export async function syncBulkConnectionsToCloud(conns: ServiceConnection[]) {
+  try {
+    await commitCollectionInChunks('connections', conns);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'connections/bulk');
+  }
+}
+
 export async function deleteConnectionFromCloud(id: string) {
   try {
     await deleteDoc(doc(db, 'connections', id));
@@ -1965,14 +1990,6 @@ export async function syncBulkPaymentsToCloud(paymentsList: Payment[]) {
   }
 }
 
-export async function syncConnectionToCloud(conn: ServiceConnection) {
-  try {
-    await setDoc(doc(db, 'connections', conn.id), cleanForFirestore(conn), { merge: true });
-  } catch (err) {
-    handleFirestoreError(err, OperationType.WRITE, `connections/${conn.id}`);
-  }
-}
-
 export async function syncTechRequestToCloud(req: TechnicalRequest) {
   try {
     await setDoc(doc(db, 'techRequests', req.id), cleanForFirestore(req), { merge: true });
@@ -2036,12 +2053,6 @@ export function subscribeToTechRequestsFromCloud(callback: (list: TechnicalReque
   return onSnapshot(collection(db, 'techRequests'), (snap) => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as TechnicalRequest)));
   }, (err) => handleFirestoreError(err, OperationType.GET, 'techRequests'));
-}
-
-export function subscribeToConnectionsFromCloud(callback: (list: ServiceConnection[]) => void) {
-  return onSnapshot(collection(db, 'connections'), (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as ServiceConnection)));
-  }, (err) => handleFirestoreError(err, OperationType.GET, 'connections'));
 }
 
 export function subscribeToEmployeesFromCloud(callback: (list: Employee[]) => void) {

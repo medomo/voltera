@@ -65,7 +65,7 @@ export const StationDirectoryManager: React.FC<StationDirectoryManagerProps> = (
   onUpdateSettings,
   onAddAuditLog
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'appearance' | 'services' | 'legal' | 'branding' | 'contact' | 'banking' | 'branches' | 'schedule' | 'policies'>('appearance');
+  const [activeSubTab, setActiveSubTab] = useState<'legal' | 'branding' | 'contact' | 'banking' | 'branches' | 'schedule' | 'policies' | 'appearance' | 'services'>('legal');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ success?: boolean; message?: string } | null>(null);
   const [copiedText, setCopiedText] = useState(false);
@@ -461,8 +461,6 @@ export const StationDirectoryManager: React.FC<StationDirectoryManagerProps> = (
         {/* Navigation Sub-Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs font-bold">
           {[
-            { id: 'appearance', label: 'تخصيص المظهر وسمات الواجهة', icon: Palette },
-            { id: 'services', label: 'الخدمات الإضافية والتكاملات', icon: Zap },
             { id: 'legal', label: 'البيانات القانونية والتراخيص', icon: FileBadge },
             { id: 'branding', label: 'الشعار والهوية والأختام', icon: Award },
             { id: 'contact', label: 'دليل التواصل والموقع الجغرافي', icon: Phone },
@@ -470,6 +468,8 @@ export const StationDirectoryManager: React.FC<StationDirectoryManagerProps> = (
             { id: 'branches', label: 'فروع ومكاتب الخدمة', icon: Building2, count: settings.branches?.length },
             { id: 'schedule', label: 'ساعات التوليد والعمل', icon: Clock },
             { id: 'policies', label: 'شروط وسياسات المطبوعات', icon: FileText },
+            { id: 'appearance', label: 'تخصيص المظهر وسمات الواجهة', icon: Palette },
+            { id: 'services', label: 'الخدمات الإضافية والتكاملات', icon: Zap },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeSubTab === tab.id;

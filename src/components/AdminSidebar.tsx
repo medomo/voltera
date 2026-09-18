@@ -206,6 +206,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                       <span>النظام المحاسبي الشامل</span>
                     </button>
                     <button
+                      onClick={() => handleNavClick('service-connections')}
+                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeSection === 'service-connections'
+                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                      <span>إيرادات إدخال الخدمة والاشتراكات</span>
+                    </button>
+                    <button
                       onClick={() => handleNavClick('admin-postings')}
                       className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                         activeSection === 'admin-postings'
@@ -715,6 +726,39 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     className="flex flex-col gap-0.5 pr-3 border-r-2 border-slate-800/60 mr-2 overflow-hidden"
                   >
                     <button
+                      onClick={() => handleNavClick('station-directory')}
+                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeSection === 'station-directory' || activeSection === 'system'
+                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                      <span>دليل وهوية المحطة</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavClick('admin-settings')}
+                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeSection === 'admin-settings'
+                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
+                      <span>تعرفة الكهرباء والرسوم</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavClick('admin-services')}
+                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                        activeSection === 'admin-services'
+                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
+                      <span>السندات الحرارية والطباعة</span>
+                    </button>
+                    <button
                       onClick={() => handleNavClick('roles')}
                       className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                         activeSection === 'roles'
@@ -746,39 +790,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     >
                       <div className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
                       <span>الأمان وسجل التدقيق</span>
-                    </button>
-                    <button
-                      onClick={() => handleNavClick('station-directory')}
-                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        activeSection === 'station-directory'
-                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                      }`}
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                      <span>تخصيص المظهر وخدمات إضافية</span>
-                    </button>
-                    <button
-                      onClick={() => handleNavClick('admin-settings')}
-                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        activeSection === 'admin-settings'
-                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                      }`}
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
-                      <span>تعرفة الكهرباء والرسوم</span>
-                    </button>
-                    <button
-                      onClick={() => handleNavClick('admin-services')}
-                      className={`flex items-center justify-start gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                        activeSection === 'admin-services'
-                          ? 'bg-slate-800/80 text-white font-bold text-amber-400'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                      }`}
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
-                      <span>السندات الحرارية والخدمات المتقدمة</span>
                     </button>
                   </motion.div>
                 )}
