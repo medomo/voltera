@@ -1,0 +1,6 @@
+{
+  "name": "نظام فوترة الكهرباء التجارية - Commercial Electricity Billing",
+  "description": "نظام متكامل لإدارة محطة الكهرباء التجارية والفوترة، يشتمل على واجهات لمدير النظام والمحصلين، وإدارة قواعد البيانات، الأمان، الإعدادات، والترحيلات المالية.",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

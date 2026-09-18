@@ -1,0 +1,144 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    // Allow read and write on all paths for application operations
+    match /{document=**} {
+      allow read, write: if true;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // SMS Templates collection
+    match /smsTemplates/{templateId} {
+      allow read, write: if true;
+    }
+
+    // Failed & Pending SMS collection
+    match /failedSms/{smsId} {
+      allow read, write: if true;
+    }
+
+    // Subscribers collection
+    match /subscribers/{subscriberId} {
+      allow read, write: if true;
+    }
+
+    // Readings collection
+    match /readings/{readingId} {
+      allow read, write: if true;
+    }
+
+    // Payments collection
+    match /payments/{paymentId} {
+      allow read, write: if true;
+    }
+
+    // System Settings collection
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Electricity Tariffs collection
+    match /tariffs/{tariffId} {
+      allow read, write: if true;
+    }
+
+    // Station Profile & Official Identity Directory
+    match /stationProfile/{profileId} {
+      allow read, write: if true;
+    }
+
+    // Audit logs
+    match /auditLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Inventory items
+    match /inventory/{itemId} {
+      allow read, write: if true;
+    }
+
+    // Inventory transactions
+    match /inventoryTransactions/{txId} {
+      allow read, write: if true;
+    }
+
+    // Treasury transfers
+    match /treasuryTransfers/{trfId} {
+      allow read, write: if true;
+    }
+
+    // Expenses
+    match /expenses/{expId} {
+      allow read, write: if true;
+    }
+
+    // Purchases
+    match /purchases/{purId} {
+      allow read, write: if true;
+    }
+
+    // Journal entries
+    match /manualJournalEntries/{jeId} {
+      allow read, write: if true;
+    }
+
+    // Employees
+    match /employees/{empId} {
+      allow read, write: if true;
+    }
+
+    // Employee transactions
+    match /employeeTxs/{txId} {
+      allow read, write: if true;
+    }
+
+    // Service connections
+    match /connections/{connId} {
+      allow read, write: if true;
+    }
+
+    // Tech requests
+    match /techRequests/{reqId} {
+      allow read, write: if true;
+    }
+
+    // Database Snapshots
+    match /dbSnapshots/{snapId} {
+      allow read, write: if true;
+    }
+
+    // Partners & Equity Registry
+    match /partners/{partnerId} {
+      allow read, write: if true;
+    }
+
+    // Partner Capital & Drawing Transactions
+    match /partnerTransactions/{txId} {
+      allow read, write: if true;
+    }
+
+    // Profit Distribution Batches
+    match /profitDistributions/{distId} {
+      allow read, write: if true;
+    }
+
+    // Connection test document
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+  }
+}

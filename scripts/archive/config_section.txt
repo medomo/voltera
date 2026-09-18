@@ -1,0 +1,206 @@
+        {/* RIGHT PANEL: Dynamic actions workspace */}
+        <div className="lg:col-span-8 relative bg-slate-950/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl p-6 min-h-[480px] shadow-2xl overflow-hidden ring-1 ring-white/5">
+          <div className={`absolute top-0 right-0 w-96 h-96 opacity-[0.03] blur-[100px] pointer-events-none rounded-full ${activeColor.bg}`}></div>
+
+          {selectedAction === 'config_station' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="border-b border-slate-800 pb-2 mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center justify-end gap-2">
+                  <span>
+                    {selectedAction === 'config_central_meters' && 'دليل العدادات المركزية'}
+                    {selectedAction === 'config_squares' && 'دليل المربعات'}
+                    {selectedAction === 'config_routes' && 'دليل خطوط السير'}
+                    {selectedAction === 'config_contracts' && 'دليل نماذج العقود'}
+                    {selectedAction === 'config_opening_balances' && 'دليل الارصدة الافتتاحية للقراءات'}
+                    {selectedAction === 'config_services' && 'دليل الخدمات'}
+                    {selectedAction === 'config_fines' && 'دليل الغرامات'}
+                    {selectedAction === 'config_import_excel' && 'استيراد المشتركين من ملف اكسل'}
+                    {selectedAction === 'config_reorder_serial' && 'اعادة ترتيب المشتركين حسب الرقم التسلسلي'}
+                    {selectedAction === 'config_generators' && 'دليل المولدات'}
+                  </span>
+                  <Settings className={`w-4 h-4 ${activeColor.text}`} />
+                </h3>
+              </div>
+              
+              
+          {selectedAction === 'config_station' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="border-b border-slate-800 pb-2 mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center justify-end gap-2">
+                  <span>بيانات المحطة</span>
+                  <Settings className={`w-4 h-4 ${activeColor.text}`} />
+                </h3>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
+                  <div className="space-y-2">
+                    <div className="flex justify-end items-center gap-2">
+                      <input type="text" className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full" value={settings.stationName || ''} onChange={e => onUpdateSettings({...settings, stationName: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-32">اسم المحطة</label>
+                    </div>
+                    <div className="flex justify-end items-center gap-2">
+                      <input type="text" className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full" value={settings.ownerName || ''} onChange={e => onUpdateSettings({...settings, ownerName: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-32">مالك المحطة</label>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                     <div className="flex justify-end items-center gap-2">
+                      <input type="text" className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full" value={settings.phone || ''} onChange={e => onUpdateSettings({...settings, phone: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-32">رقم الهاتف</label>
+                    </div>
+                    <div className="flex justify-end items-center gap-2">
+                      <input type="text" className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full" value={settings.address || ''} onChange={e => onUpdateSettings({...settings, address: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-32">العنوان</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedAction === 'config_areas' && <GenericConfigTable title="دليل المناطق" items={settings.zones || []} onUpdateItems={(items) => onUpdateSettings({...settings, zones: items})} activeColorClass={activeColor.text} />}
+          {selectedAction === 'config_tariff_consumption' && <GenericConfigTable title="دليل تعرفة استهلاك الكهرباء" items={[]} onUpdateItems={() => {}} activeColorClass={activeColor.text} />}
+          {selectedAction === 'config_tariff_subscription' && <GenericConfigTable title="دليل تعرفة الاشتراكات" items={[]} onUpdateItems={() => {}} activeColorClass={activeColor.text} />}
+          
+          {selectedAction === 'config_collectors' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="border-b border-slate-800 pb-2 mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center justify-end gap-2">
+                  <span>دليل المحصلين ومستخدمي النظام</span>
+                  <Settings className={`w-4 h-4 ${activeColor.text}`} />
+                </h3>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <input type="text" disabled={!isEditingCollector} className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full disabled:opacity-50" value={collectorForm.name || ''} onChange={e => setCollectorForm({...collectorForm, name: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-24">اسم المحصل</label>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <input type="text" disabled={!isEditingCollector} className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full disabled:opacity-50" value={collectorForm.phone || ''} onChange={e => setCollectorForm({...collectorForm, phone: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-24">رقم التلفون</label>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <input type="text" disabled={!isEditingCollector} className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full disabled:opacity-50" value={collectorForm.address || ''} onChange={e => setCollectorForm({...collectorForm, address: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-24">العنوان</label>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <input type="text" disabled={!isEditingCollector} className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full disabled:opacity-50" value={collectorForm.notes || ''} onChange={e => setCollectorForm({...collectorForm, notes: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-24">ملاحظات</label>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <input type="text" disabled={!isEditingCollector} className="bg-slate-950 border border-slate-700 rounded p-1 text-xs text-white text-right w-full disabled:opacity-50" value={collectorForm.username || ''} onChange={e => setCollectorForm({...collectorForm, username: e.target.value})} />
+                      <label className="text-xs text-slate-400 w-24">اسم المستخدم</label>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <input type="checkbox" disabled={!isEditingCollector} className="rounded bg-slate-950 border-slate-700 text-blue-500 disabled:opacity-50" checked={collectorForm.hasInternet || false} onChange={e => setCollectorForm({...collectorForm, hasInternet: e.target.checked})} />
+                      <label className="text-xs text-slate-400">عبر النت</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-2 bg-slate-900 border border-slate-800 rounded-lg p-2 mt-4">
+                  {!isEditingCollector ? (
+                    <>
+                      <button onClick={handleAddCollector} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600/20 text-emerald-400 rounded hover:bg-emerald-600/30 transition-colors text-xs font-bold cursor-pointer">
+                        <Plus className="w-3.5 h-3.5" /> إضافة
+                      </button>
+                      <button onClick={handleEditCollector} className="flex items-center gap-1 px-3 py-1.5 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30 transition-colors text-xs font-bold cursor-pointer">
+                        <CheckSquare className="w-3.5 h-3.5" /> تعديل
+                      </button>
+                      <button onClick={handleDeleteCollector} className="flex items-center gap-1 px-3 py-1.5 bg-rose-600/20 text-rose-400 rounded hover:bg-rose-600/30 transition-colors text-xs font-bold cursor-pointer">
+                        <Trash2 className="w-3.5 h-3.5" /> حذف
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={handleSaveCollector} className="flex items-center gap-1 px-3 py-1.5 bg-amber-500/20 text-amber-400 rounded hover:bg-amber-500/30 transition-colors text-xs font-bold cursor-pointer">
+                      <CheckSquare className="w-3.5 h-3.5" /> حفظ البيانات
+                    </button>
+                  )}
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mt-4">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-right text-xs">
+                      <thead className="bg-slate-950 text-slate-400 border-b border-slate-800">
+                        <tr>
+                          <th className="p-2 font-medium">الرقم</th>
+                          <th className="p-2 font-medium">اسم المحصل</th>
+                          <th className="p-2 font-medium">رقم التلفون</th>
+                          <th className="p-2 font-medium">العنوان</th>
+                          <th className="p-2 font-medium">ملاحظات</th>
+                          <th className="p-2 font-medium">مستخدم النظام</th>
+                          <th className="p-2 font-medium text-center">موبايل نت</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/50">
+                        {collectorsList.map((user, idx) => (
+                          <tr 
+                            key={user.id} 
+                            onClick={() => handleSelectCollector(user)}
+                            className={`cursor-pointer transition-colors ${selectedCollectorId === user.id ? 'bg-blue-900/30' : 'hover:bg-slate-800/50'}`}
+                          >
+                            <td className="p-2">{idx + 1}</td>
+                            <td className="p-2 text-white font-medium">{user.name}</td>
+                            <td className="p-2 text-slate-400">{user.phone || '-'}</td>
+                            <td className="p-2 text-slate-400">{user.address || '-'}</td>
+                            <td className="p-2 text-slate-500 truncate max-w-[100px]">{user.notes || '-'}</td>
+                            <td className="p-2 text-slate-300">{user.username}</td>
+                            <td className="p-2 text-center">
+                              {user.hasInternet ? (
+                                <Check className="w-4 h-4 text-emerald-500 mx-auto" />
+                              ) : (
+                                <span className="text-slate-600">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {selectedAction === 'config_subscribers' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <div className="border-b border-slate-800 pb-2 mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center justify-end gap-2">
+                  <span>دليل المشتركين</span>
+                  <Settings className={`w-4 h-4 ${activeColor.text}`} />
+                </h3>
+              </div>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center text-slate-400">
+                قائمة المشتركين تتم إدارتها من واجهة "إدارة ملفات المشتركين"
+              </div>
+            </div>
+          )}
+
+{selectedAction === 'config_central_meters' && <GenericConfigTable title="دليل العدادات المركزية" items={settings.centralMeters || []} onUpdateItems={(items) => onUpdateSettings({...settings, centralMeters: items})} activeColorClass={activeColor.text} />}
+              {selectedAction === 'config_squares' && <GenericConfigTable title="دليل المربعات" items={settings.squares || []} onUpdateItems={(items) => onUpdateSettings({...settings, squares: items})} activeColorClass={activeColor.text} />}
+              {selectedAction === 'config_routes' && <GenericConfigTable title="دليل خطوط السير" items={settings.routes || []} onUpdateItems={(items) => onUpdateSettings({...settings, routes: items})} activeColorClass={activeColor.text} />}
+              {selectedAction === 'config_contracts' && <GenericConfigTable title="دليل نماذج العقود" items={settings.contracts || []} onUpdateItems={(items) => onUpdateSettings({...settings, contracts: items})} activeColorClass={activeColor.text} />}
+              {selectedAction === 'config_opening_balances' && <GenericConfigTable title="دليل الارصدة الافتتاحية للقراءات" items={[]} onUpdateItems={() => {}} activeColorClass={activeColor.text} />}
+              {selectedAction === 'config_services' && <GenericConfigTable title="دليل الخدمات" items={settings.services || []} onUpdateItems={(items) => onUpdateSettings({...settings, services: items})} activeColorClass={activeColor.text} />}
+              {selectedAction === 'config_fines' && <GenericConfigTable title="دليل الغرامات" items={settings.fines || []} onUpdateItems={(items) => onUpdateSettings({...settings, fines: items})} activeColorClass={activeColor.text} />}
+              {selectedAction === 'config_generators' && <GenericConfigTable title="دليل المولدات" items={settings.generators || []} onUpdateItems={(items) => onUpdateSettings({...settings, generators: items})} activeColorClass={activeColor.text} />}
+              {(selectedAction === 'config_import_excel' || selectedAction === 'config_reorder_serial') && (
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center mb-2 shadow-inner">
+                    <Settings className={`w-8 h-8 ${activeColor.text} opacity-50`} />
+                  </div>
+                  <h4 className="text-lg font-bold text-white">قيد التطوير</h4>
+                  <p className="text-sm text-slate-400 max-w-md leading-relaxed">
+                    هذه الميزة معقدة وتتطلب تطوير خاص للتعامل مع معالجة البيانات بالجملة.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ACTION: System Overview */}
+          {selectedAction === 'sys_overview' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="border-b border-slate-800 pb-2">

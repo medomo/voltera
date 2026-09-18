@@ -1,0 +1,247 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application system user profile and authentication roles",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Email or unique username" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "role": { "type": "string", "enum": ["admin", "collector", "technician", "accountant"] },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "permissions": { "type": "array", "description": "List of permission strings" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["username", "name", "role", "status"]
+    },
+    "Subscriber": {
+      "title": "Subscriber",
+      "description": "Electricity commercial subscriber/customer record",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Customer name" },
+        "meterNumber": { "type": "string", "description": "Electricity meter serial number" },
+        "currentReading": { "type": "number", "description": "Latest meter reading kwh" },
+        "currentBalance": { "type": "number", "description": "Account balance currency" },
+        "tariffRate": { "type": "number", "description": "Per KWH rate" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "boxNumber": { "type": "string" },
+        "phaseType": { "type": "string", "enum": ["single", "three"] },
+        "status": { "type": "string", "enum": ["active", "disconnected", "suspended"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "meterNumber", "currentReading", "currentBalance"]
+    },
+    "MeterReading": {
+      "title": "MeterReading",
+      "description": "Monthly or periodic meter reading entry",
+      "type": "object",
+      "properties": {
+        "subscriberId": { "type": "string" },
+        "previousReading": { "type": "number" },
+        "currentReading": { "type": "number" },
+        "consumption": { "type": "number" },
+        "tariffRate": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "date": { "type": "string" },
+        "collectorName": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["subscriberId", "currentReading", "consumption", "totalAmount", "date"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Subscriber bill payment receipt",
+      "type": "object",
+      "properties": {
+        "subscriberId": { "type": "string" },
+        "amountPaid": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "date": { "type": "string" },
+        "collectorName": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["subscriberId", "amountPaid", "date"]
+    },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Global commercial electric billing system configuration",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "tariffRate": { "type": "number" },
+        "currency": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "fixedMonthlyFee": { "type": "number" }
+      }
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System activity audit trail",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "username": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["username", "action", "timestamp"]
+    },
+    "SmsTemplate": {
+      "title": "SmsTemplate",
+      "description": "Customizable SMS notification templates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "content": { "type": "string" },
+        "type": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "content"]
+    },
+    "StationProfile": {
+      "title": "StationProfile",
+      "description": "Station official identity, legal registers, contact directory, and official bank accounts",
+      "type": "object",
+      "properties": {
+        "stationName": { "type": "string" },
+        "stationNameEn": { "type": "string" },
+        "stationCode": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "commercialRegister": { "type": "string" },
+        "taxNumber": { "type": "string" },
+        "licenseNumber": { "type": "string" },
+        "phone": { "type": "string" },
+        "phone2": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "address": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "officialStampUrl": { "type": "string" },
+        "managerSignatureUrl": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "FailedSmsItem": {
+      "title": "FailedSmsItem",
+      "description": "Failed or pending SMS message records queued in the database",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["reading", "payment", "custom"] },
+        "referenceId": { "type": "string" },
+        "subscriberId": { "type": "string" },
+        "subscriberName": { "type": "string" },
+        "phone": { "type": "string" },
+        "amount": { "type": "number" },
+        "messageText": { "type": "string" },
+        "templateId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "type", "referenceId", "phone", "messageText"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "System user profiles"
+    },
+    "/failedSms/{smsId}": {
+      "schema": "FailedSmsItem",
+      "description": "Failed and pending SMS messages database collection"
+    },
+    "/smsTemplates/{templateId}": {
+      "schema": "SmsTemplate",
+      "description": "SMS message templates"
+    },
+    "/subscribers/{subscriberId}": {
+      "schema": "Subscriber",
+      "description": "Commercial electricity subscribers"
+    },
+    "/readings/{readingId}": {
+      "schema": "MeterReading",
+      "description": "Electricity meter readings"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Subscriber payment receipts"
+    },
+    "/settings/global": {
+      "schema": "SystemSettings",
+      "description": "Global application configuration"
+    },
+    "/tariffs/{tariffId}": {
+      "schema": "object",
+      "description": "Electricity tariff rates and commercial fees"
+    },
+    "/stationProfile/{profileId}": {
+      "schema": "StationProfile",
+      "description": "Official station directory and identity register"
+    },
+    "/auditLogs/{logId}": {
+      "schema": "AuditLog",
+      "description": "System operation audit logs"
+    },
+    "/inventory/{itemId}": {
+      "schema": "object",
+      "description": "Inventory items and warehouse materials"
+    },
+    "/inventoryTransactions/{txId}": {
+      "schema": "object",
+      "description": "Inventory movement records"
+    },
+    "/expenses/{expId}": {
+      "schema": "object",
+      "description": "Financial expenses"
+    },
+    "/purchases/{purId}": {
+      "schema": "object",
+      "description": "Procurement purchases"
+    },
+    "/manualJournalEntries/{jeId}": {
+      "schema": "object",
+      "description": "Accounting journal entries"
+    },
+    "/treasuryTransfers/{trfId}": {
+      "schema": "object",
+      "description": "Treasury money transfers"
+    },
+    "/employees/{empId}": {
+      "schema": "object",
+      "description": "Employee payroll records"
+    },
+    "/employeeTxs/{txId}": {
+      "schema": "object",
+      "description": "Employee payroll and financial transaction records"
+    },
+    "/connections/{connId}": {
+      "schema": "object",
+      "description": "Subscriber electric service connection requests"
+    },
+    "/techRequests/{reqId}": {
+      "schema": "object",
+      "description": "Technical support and maintenance requests"
+    },
+    "/dbSnapshots/{snapId}": {
+      "schema": "object",
+      "description": "System database snapshot backups"
+    },
+    "/partners/{partnerId}": {
+      "schema": "object",
+      "description": "Company partners, shareholders, and equity registry"
+    },
+    "/partnerTransactions/{txId}": {
+      "schema": "object",
+      "description": "Partner capital additions, drawings, and profit payouts"
+    },
+    "/profitDistributions/{distId}": {
+      "schema": "object",
+      "description": "Periodic profit distribution resolution batches and partner share allocations"
+    }
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "id": "/",
+  "lang": "ar",
+  "dir": "rtl",
+  "name": "فولترا - نظام فوترة وإدارة محطة الكهرباء التجارية",
+  "short_name": "فولترا سحابي",
+  "description": "نظام محاسبي سحابي متكامل لإدارة المشتركين وتحصيل فواتير الكهرباء الميدانية",
+  "start_url": "/",
+  "scope": "/",
+  "scope_extensions": [
+    {
+      "origin": "https://*.voltra.app"
+    },
+    {
+      "origin": "https://*.ai.studio"
+    },
+    {
+      "origin": "https://*.run.app"
+    },
+    {
+      "origin": "https://auth.voltra.app"
+    },
+    {
+      "origin": "https://billing.voltra.app"
+    }
+  ],
+  "display": "standalone",
+  "display_override": [
+    "tabbed",
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "tab_strip": {
+    "home_tab": {
+      "scope_patterns": [
+        {
+          "pathname": "/"
+        }
+      ]
+    },
+    "new_tab_button": {
+      "url": "/"
+    }
+  },
+  "launch_handler": {
+    "client_mode": [
+      "focus-existing",
+      "auto"
+    ]
+  },
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "لوحة تحكم وإدارة المحطة والمشتركين"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "تطبيق إدخال القراءات والفوترة الميدانية"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=app.voltra.billing",
+      "id": "app.voltra.billing"
+    },
+    {
+      "platform": "windows",
+      "url": "https://www.microsoft.com/store/apps/9NBLGGH4NNS1",
+      "id": "Voltra.ElectricStationBilling"
+    },
+    {
+      "platform": "webapp",
+      "url": "https://voltra.app/manifest.json"
+    }
+  ],
+  "categories": [
+    "business",
+    "finance",
+    "utilities"
+  ],
+  "iarc_rating_id": "e58c1713-19cc-432e-a342-a2707f1d43a6",
+  "shortcuts": [
+    {
+      "name": "إدخال قراءات العدادات الميدانية",
+      "short_name": "قراءات العدادات",
+      "description": "تسجيل وقراءة عدادات المشتركين بسرعة في الميدان",
+      "url": "/?shortcut=readings",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "تحصيل وقبض الفواتير",
+      "short_name": "تحصيل الفواتير",
+      "description": "اصدار سندات القبض وطباعة الفواتير للمشتركين",
+      "url": "/?shortcut=billing",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "دليل وإدارة المشتركين",
+      "short_name": "المشتركون",
+      "description": "البحث عن بيانات وحسابات المشتركين",
+      "url": "/?shortcut=subscribers",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/?action=import",
+      "name": "ملفات البيانات والنسخ الاحتياطية",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "accept": {
+        "text/csv": [
+          ".csv"
+        ],
+        "application/json": [
+          ".json"
+        ],
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+          ".xlsx"
+        ]
+      }
+    }
+  ],
+  "protocol_handlers": [
+    {
+      "protocol": "web+voltra",
+      "url": "/?protocol=%s"
+    },
+    {
+      "protocol": "web+bill",
+      "url": "/?bill=%s"
+    }
+  ],
+  "share_target": {
+    "action": "/?action=share",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "widgets": [
+    {
+      "name": "ملخص محطة الكهرباء - فولترا",
+      "short_name": "فولترا",
+      "description": "عُرض ملخص سريع لإحصائيات التحصيل وقراءات العدادات اليومية",
+      "tag": "voltra-summary",
+      "template": "voltra-summary-template",
+      "ms_ac_template": "/widgets/summary.json",
+      "data": "/api/widget-data",
+      "type": "application/json",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ],
+      "auth": false
+    }
+  ],
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "note_taking": {
+    "new_note_url": "/?action=new-note"
+  }
+}
