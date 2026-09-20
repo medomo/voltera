@@ -290,7 +290,7 @@ export const IndividualStatementView: React.FC<IndividualStatementViewProps> = (
     const rows = statementData.timeline.map(item => [
       item.date,
       item.type === 'reading' ? 'فاتورة' : 'سند قبض',
-      item.desc.replace(/,/g, ' - '),
+      (item.desc || '').replace(/,/g, ' - '),
       item.debit,
       item.credit,
       item.runningBalance
@@ -301,7 +301,7 @@ export const IndividualStatementView: React.FC<IndividualStatementViewProps> = (
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `كشف_حساب_${selectedSub.name.replace(/\s+/g, '_')}_${selectedSub.meterNumber}.csv`;
+    link.download = `كشف_حساب_${(selectedSub.name || '').replace(/\s+/g, '_')}_${selectedSub.meterNumber || ''}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -336,7 +336,7 @@ export const IndividualStatementView: React.FC<IndividualStatementViewProps> = (
 
   const handleOpenWhatsApp = () => {
     if (!selectedSub?.phone) return;
-    const cleanPhone = selectedSub.phone.replace(/[^0-9]/g, '');
+    const cleanPhone = String(selectedSub.phone || '').replace(/[^0-9]/g, '');
     const fullPhone = cleanPhone.startsWith('967') ? cleanPhone : `967${cleanPhone}`;
     const text = encodeURIComponent(buildShareText());
     window.open(`https://wa.me/${fullPhone}?text=${text}`, '_blank');

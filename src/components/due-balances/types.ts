@@ -17,6 +17,7 @@ export interface SubscriberBalanceItem {
   phone: string;
   zone: string;
   transformer: string;
+  collectorName: string;
   tariffType: string;
   rawTariff: string;
   status: string;
@@ -32,12 +33,27 @@ export interface SubscriberBalanceItem {
   lastPaymentDate: string;
   lastPaymentAmount: number;
   lastPaymentDaysAgo: number;
+  lastReceiptNumber?: string;
   lastReadingDate: string;
   lastReadingMonth: string;
   lastConsumption: number;
   agingBracket: 'current' | 'days31_60' | 'days61_90' | 'over90';
   agingBracketLabel: string;
   notes: string;
+  fieldPaid?: string;
+  receiptNumber?: string;
+  subscriberSignature?: string;
+}
+
+export interface CollectorStats {
+  name: string;
+  count: number;
+  totalDue: number;
+  totalCollected: number;
+  totalOverdue: number;
+  totalCurrent: number;
+  collectionRate: number;
+  debtorsCount: number;
 }
 
 export interface SummaryStatistics {
@@ -88,6 +104,10 @@ export interface DueBalancesReportModalProps {
   payments: any[];
   settings: SystemSettings;
   currentUser: User;
+  users?: User[];
+  employees?: any[];
+  collectorsList?: string[];
   onOpenSubscriberStatement?: (subscriber: Subscriber) => void;
-  onCollectPayment?: (subscriber: Subscriber) => void;
+  onCollectPayment?: (subscriber: Subscriber, defaultAmount?: number) => void;
+  onAddPayment?: (payment: any) => void | Promise<void>;
 }

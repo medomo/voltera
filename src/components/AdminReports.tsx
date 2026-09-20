@@ -550,6 +550,9 @@ export const AdminReports: React.FC<AdminReportsProps> = ({
               payments={payments}
               settings={settings}
               currentUser={currentUser}
+              users={users}
+              employees={employees}
+              collectorsList={collectorsList}
               onOpenSubscriberStatement={(sub) => {
                 setSelectedSubId(sub.id);
                 setActiveTab('statements');
@@ -639,6 +642,9 @@ export const AdminReports: React.FC<AdminReportsProps> = ({
         payments={payments}
         settings={settings}
         currentUser={currentUser}
+        users={users}
+        employees={employees}
+        collectorsList={collectorsList}
         onOpenSubscriberStatement={(sub) => {
           setSelectedSubId(sub.id);
           setActiveTab('statements');

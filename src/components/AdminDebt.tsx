@@ -172,7 +172,7 @@ export const AdminDebt: React.FC<AdminDebtProps> = ({ subscribers, readings, pay
       balance: `${s.currentBalance.toLocaleString()} ${settings.currency}`,
       phone: s.phone,
       meterNumber: s.meterNumber,
-      zone: s.zone ? s.zone.replace('المنطقة ', '') : '-',
+      zone: s.zone ? String(s.zone).replace('المنطقة ', '') : '-',
       status: s.currentBalance > 100000 ? 'متعثر حرج' : 'مدين'
     }));
 
@@ -709,7 +709,7 @@ export const AdminDebt: React.FC<AdminDebtProps> = ({ subscribers, readings, pay
                     {printingSub.zone && (
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-bold">المنطقة:</span>
-                        <span className="font-bold">{printingSub.zone.replace('المنطقة ', '')}</span>
+                        <span className="font-bold">{(printingSub.zone || '').replace('المنطقة ', '')}</span>
                       </div>
                     )}
                     <div className="flex justify-between">

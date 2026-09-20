@@ -118,7 +118,7 @@ export const ZoneBarChart: React.FC<ZoneBarChartProps> = ({ data, height = 240 }
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-              <XAxis dataKey="zone" stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(val) => val.replace('المنطقة ', '')} />
+              <XAxis dataKey="zone" stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(val) => typeof val === 'string' ? val.replace('المنطقة ', '') : String(val ?? '')} />
               <YAxis stroke="#64748b" tick={{ fill: '#94a3b8', fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val} />
               <Tooltip content={<CustomTooltip />} cursor={{ fill: '#1e293b', opacity: 0.4 }} />
               <Bar dataKey="consumption" fill="url(#barCyan)" radius={[6, 6, 0, 0]} maxBarSize={50}>

@@ -1617,15 +1617,22 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
 
   // --- CANONICAL COLLECTOR RESOLUTION HELPER ---
   const getCanonicalCollectorName = (rawIdentifier: string | undefined): string => {
-    if (!rawIdentifier) return 'المحصل الميداني';
+    // Find if there is an active primary collector in the station
+    const activeEmpCollector = employees.find(e => e.role === 'collector' || e.department?.includes('تحصيل'));
+    const activeUserCollector = users.find(u => u.role === 'collector' && u.status !== 'suspended');
+    const defaultCollector = activeEmpCollector?.name || activeUserCollector?.name || activeUserCollector?.username || '';
+
+    if (!rawIdentifier) return defaultCollector || 'الصندوق الرئيسي (الكاش)';
     const trimmed = rawIdentifier.trim();
-    if (!trimmed || trimmed === 'المحصل الميداني') return 'المحصل الميداني';
+    if (!trimmed || trimmed === 'المحصل الميداني' || trimmed === 'سالم - المحصل الميداني' || trimmed === 'سالم') {
+      return defaultCollector || 'الصندوق الرئيسي (الكاش)';
+    }
 
     const normalizedTrimmed = trimmed.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
 
     // 1. Direct match by employee name (exact or normalized)
     const empByName = employees.find(e => {
-      const eName = e.name.trim();
+      const eName = (e.name || '').trim();
       const normEName = eName.replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
       return eName === trimmed || normEName === normalizedTrimmed;
     });
@@ -1675,7 +1682,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
       return true;
     }
 
-    const simpleName = collectorCanonicalName.replace(/\s*\([^)]*\)/g, '').trim();
+    const simpleName = (collectorCanonicalName || '').replace(/\s*\([^)]*\)/g, '').trim();
     if (simpleName && (from.includes(simpleName) || cleanedFrom.includes(simpleName))) return true;
 
     // Check linked user
@@ -1714,14 +1721,19 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
   const collectorsList = useMemo(() => {
     const list = new Set<string>();
 
-    // 1. Users with collector role
-    users.filter(u => u.role === 'collector').forEach(u => {
-      list.add(getCanonicalCollectorName(u.name || u.username));
+    // 1. Employees with collector role or department
+    employees.filter(e => e.role === 'collector' || e.department?.includes('تحصيل')).forEach(e => {
+      if (e.name && e.name.trim()) {
+        list.add(getCanonicalCollectorName(e.name));
+      }
     });
 
-    // 2. Employees with collector role
-    employees.filter(e => e.role === 'collector').forEach(e => {
-      list.add(getCanonicalCollectorName(e.name));
+    // 2. Users with collector role
+    users.filter(u => u.role === 'collector' && u.status !== 'suspended').forEach(u => {
+      const canonical = getCanonicalCollectorName(u.name || u.username);
+      if (canonical && canonical !== 'الصندوق الرئيسي (الكاش)') {
+        list.add(canonical);
+      }
     });
 
     // 3. Anyone who has recorded collections
@@ -1729,33 +1741,38 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
       if (p.isRejected) return;
       const raw = p.receivedBy || (p as any).collectorName || (p as any).collectedBy;
       if (raw) {
-        list.add(getCanonicalCollectorName(raw));
+        const canonical = getCanonicalCollectorName(raw);
+        if (canonical && canonical !== 'الصندوق الرئيسي (الكاش)' && canonical !== 'المحصل الميداني' && canonical !== 'سالم - المحصل الميداني') {
+          list.add(canonical);
+        }
       }
     });
 
     // 4. Anyone who has recorded treasury transfers from their box
     treasuryTransfers.forEach(t => {
+      if (t.isRejected || (t as any).status === 'rejected') return;
       const from = t.fromAccount || '';
       if (from.includes('المحصل') || from.includes('عهدة')) {
         const extracted = from.replace(/^.*(?:صندوق|عُهدة|عهدة)\s*المحصل[:\s]*/i, '').trim();
-        if (extracted && extracted !== 'الميداني') {
-          list.add(getCanonicalCollectorName(extracted));
+        if (extracted && extracted !== 'الميداني' && extracted !== 'سالم') {
+          const canonical = getCanonicalCollectorName(extracted);
+          if (canonical && canonical !== 'الصندوق الرئيسي (الكاش)') {
+            list.add(canonical);
+          }
         }
       }
     });
 
-    const combined = Array.from(list).filter(Boolean);
-    return combined.length > 0 ? combined : ['المحصل الميداني'];
+    return Array.from(list).filter(Boolean);
   }, [payments, employees, users, treasuryTransfers]);
 
   // Unified available accounts list for transfers and vaults
   const availableAccounts = useMemo(() => {
-    const list = [
-      'الصندوق الرئيسي (الكاش)',
-      'حساب بنك الكريمي',
-      'محفظة جيب الإلكترونية',
-      'حساب البنك الأهلي'
+    const list: string[] = [
+      'الصندوق الرئيسي (الكاش)'
     ];
+
+    // Bank accounts & wallets defined by user in system settings
     if (settings.bankAccounts && Array.isArray(settings.bankAccounts)) {
       settings.bankAccounts.forEach(acc => {
         const name = acc.accountName ? `${acc.bankName} - ${acc.accountName}` : acc.bankName;
@@ -1764,6 +1781,16 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
         }
       });
     }
+
+    // Include existing bank/wallet accounts from recorded transfers
+    treasuryTransfers.forEach(t => {
+      [t.fromAccount, t.toAccount].forEach(acc => {
+        if (acc && !list.includes(acc) && !acc.includes('المحصل') && !acc.includes('عهدة')) {
+          list.push(acc);
+        }
+      });
+    });
+
     collectorsList.forEach(col => {
       const boxName = `صندوق المحصل: ${col}`;
       if (!list.includes(boxName)) {
@@ -1771,7 +1798,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
       }
     });
     return list;
-  }, [collectorsList, settings.bankAccounts]);
+  }, [collectorsList, settings.bankAccounts, treasuryTransfers]);
 
   const collectorsAccountSummary = useMemo(() => {
     const isAllMonths = selectedTreasuryMonth === 'all';
@@ -2002,7 +2029,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
         refNo: t.transferNumber,
         type: 'handover' as const,
         typeLabel: 'سند توريد وتسليم خزينة',
-        collectorName: getCanonicalCollectorName(t.fromAccount.replace(/^.*(?:صندوق|عُهدة|عهدة)\s*المحصل[:\s]*/i, '')),
+        collectorName: getCanonicalCollectorName((t.fromAccount || '').replace(/^.*(?:صندوق|عُهدة|عهدة)\s*المحصل[:\s]*/i, '')),
         description: `تسليم وتوريد مبالغ إلى: ${t.toAccount} (${t.notes || 'توريد كاش'})`,
         debit: 0,
         credit: t.amount
@@ -2849,7 +2876,7 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
 
                   <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-sm">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-400">الحسابات والبنك والكريمي</span>
+                      <span className="text-xs font-bold text-slate-400">الحسابات البنكية والمحافظ</span>
                       <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl"><Building2 className="w-4 h-4" /></div>
                     </div>
                     <span className="text-2xl font-black text-purple-400 font-mono block">
@@ -2889,7 +2916,14 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {collectorsAccountSummary.map((col) => (
+                    {collectorsAccountSummary.length === 0 ? (
+                      <div className="col-span-full p-8 text-center bg-slate-950/60 border border-slate-800/80 rounded-2xl">
+                        <Users className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-slate-400">لا توجد صناديق عهد محصلين مسجلة</p>
+                        <p className="text-xs text-slate-500 mt-1">يتم احتساب صناديق العهدة تلقائياً عند تسجيل محصلين في النظام أو تسجيل عمليات تحصيل</p>
+                      </div>
+                    ) : (
+                      collectorsAccountSummary.map((col) => (
                       <div
                         key={col.collectorName}
                         className="bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 space-y-4 transition-all shadow-sm"
@@ -2994,7 +3028,8 @@ export const AdminAccounting: React.FC<AdminAccountingProps> = ({
                           </button>
                         </div>
                       </div>
-                    ))}
+                    ))
+                    )}
                   </div>
                 </div>
               </div>

@@ -433,7 +433,7 @@ export const AdminPartners: React.FC<AdminPartnersProps> = ({
 
             newTxs.push({
               id: `tx_${Date.now()}_${idx}`,
-              voucherNumber: `REINV-${batch.batchNumber.replace('DIST-', '')}-${String(idx + 1).padStart(2, '0')}`,
+              voucherNumber: `REINV-${(batch.batchNumber || '').replace('DIST-', '')}-${String(idx + 1).padStart(2, '0')}`,
               partnerId: share.partnerId,
               partnerName: share.partnerName,
               type: 'capital_reinvestment',
@@ -449,7 +449,7 @@ export const AdminPartners: React.FC<AdminPartnersProps> = ({
             // Direct cash / bank payout
             newTxs.push({
               id: `tx_${Date.now()}_${idx}`,
-              voucherNumber: `PAY-${batch.batchNumber.replace('DIST-', '')}-${String(idx + 1).padStart(2, '0')}`,
+              voucherNumber: `PAY-${(batch.batchNumber || '').replace('DIST-', '')}-${String(idx + 1).padStart(2, '0')}`,
               partnerId: share.partnerId,
               partnerName: share.partnerName,
               type: 'profit_payout',
@@ -465,7 +465,7 @@ export const AdminPartners: React.FC<AdminPartnersProps> = ({
             // Credited to Partner Current Account
             newTxs.push({
               id: `tx_${Date.now()}_${idx}`,
-              voucherNumber: `CRD-${batch.batchNumber.replace('DIST-', '')}-${String(idx + 1).padStart(2, '0')}`,
+              voucherNumber: `CRD-${(batch.batchNumber || '').replace('DIST-', '')}-${String(idx + 1).padStart(2, '0')}`,
               partnerId: share.partnerId,
               partnerName: share.partnerName,
               type: 'profit_share',

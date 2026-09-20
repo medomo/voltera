@@ -548,7 +548,7 @@ export const AdminDatabase: React.FC<AdminDatabaseProps> = ({
       const url = URL.createObjectURL(blob);
       const downloadAnchor = document.createElement('a');
       downloadAnchor.href = url;
-      downloadAnchor.download = `snapshot_${snap.name.replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_')}_${snap.date.replace(/[: ]/g, '_')}.json`;
+      downloadAnchor.download = `snapshot_${(snap.name || 'backup').replace(/[^a-zA-Z0-9_\u0600-\u06FF]/g, '_')}_${String(snap.date || '').replace(/[: ]/g, '_')}.json`;
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       document.body.removeChild(downloadAnchor);

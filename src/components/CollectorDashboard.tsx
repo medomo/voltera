@@ -630,7 +630,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
     const reading = printingJob.reading;
     const payment = printingJob.payment;
 
-    let phone = sub?.phone ? sub.phone.replace(/[^0-9]/g, '') : '';
+    let phone = sub?.phone ? String(sub.phone).replace(/[^0-9]/g, '') : '';
     if (phone.startsWith('0')) {
       phone = '967' + phone.slice(1);
     }
@@ -700,7 +700,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
   };
 
   const handleDirectShareInvoiceWhatsApp = (sub: Subscriber, reading: MeterReading, payment?: Payment | null) => {
-    let phone = sub.phone ? sub.phone.replace(/[^0-9]/g, '') : '';
+    let phone = sub?.phone ? String(sub.phone).replace(/[^0-9]/g, '') : '';
     if (phone.startsWith('0')) {
       phone = '967' + phone.slice(1);
     }
@@ -710,7 +710,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `👤 *المشترك:* ${sub.name}\n`;
     msg += `🔢 *رقم العداد:* ${sub.meterNumber}\n`;
-    msg += `🧾 *رقم الفاتورة:* ${reading.id.replace('rd-new-', 'INV-')}\n`;
+    msg += `🧾 *رقم الفاتورة:* ${(reading.id || '').replace('rd-new-', 'INV-')}\n`;
     msg += `📅 *تاريخ القراءة:* ${reading.readingDate}\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `▫️ القراءة السابقة: *${reading.previousReading} ك.و*\n`;
@@ -733,7 +733,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
   };
 
   const handleDirectSharePaymentWhatsApp = (sub: Subscriber, payment: Payment) => {
-    let phone = sub.phone ? sub.phone.replace(/[^0-9]/g, '') : '';
+    let phone = sub?.phone ? String(sub.phone).replace(/[^0-9]/g, '') : '';
     if (phone.startsWith('0')) {
       phone = '967' + phone.slice(1);
     }
@@ -861,7 +861,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
       return { allowed: false, label: '🔒 غير متاح للتعديل' };
     }
     try {
-      const itemTime = new Date(dateStr.replace(' ', 'T')).getTime();
+      const itemTime = new Date(String(dateStr || '').replace(' ', 'T')).getTime();
       const nowTime = Date.now();
       const diffMs = nowTime - itemTime;
       const diffHours = diffMs / (1000 * 60 * 60);
@@ -1390,7 +1390,8 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
     const allOperations = [
       ...myReadingsToday.map(r => ({ date: r.readingDate })),
       ...myPaymentsToday.map(p => ({ date: p.paymentDate }))
-    ].sort((a, b) => new Date(a.date.replace(' ', 'T')).getTime() - new Date(b.date.replace(' ', 'T')).getTime());
+    ].filter(op => Boolean(op.date))
+    .sort((a, b) => new Date(String(a.date || '').replace(' ', 'T')).getTime() - new Date(String(b.date || '').replace(' ', 'T')).getTime());
 
     if (allOperations.length === 0) {
       return {
@@ -1404,14 +1405,14 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
     const lastOp = allOperations[allOperations.length - 1].date;
 
     try {
-      const firstTime = new Date(firstOp.replace(' ', 'T')).getTime();
-      const lastTime = new Date(lastOp.replace(' ', 'T')).getTime();
+      const firstTime = new Date(String(firstOp || '').replace(' ', 'T')).getTime();
+      const lastTime = new Date(String(lastOp || '').replace(' ', 'T')).getTime();
       const diffMs = lastTime - firstTime;
       
       if (diffMs <= 0) {
         return {
-          first: firstOp.substring(11, 16),
-          last: lastOp.substring(11, 16),
+          first: firstOp ? String(firstOp).substring(11, 16) : '--',
+          last: lastOp ? String(lastOp).substring(11, 16) : '--',
           durationStr: 'عملية واحدة فقط'
         };
       }
@@ -1826,7 +1827,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
                         </div>
                         <div className="bg-white p-1.5 sm:p-2 rounded-lg sm:rounded-xl border border-slate-100 text-center shadow-2xs">
                           <span className="text-slate-400 block text-[9px] sm:text-[10px] font-bold">المنطقة الجغرافية</span>
-                          <span className="font-bold text-slate-800 block mt-0.5 text-[10px] sm:text-[11px] truncate">{selectedSub.zone.replace('المنطقة ', '')}</span>
+                          <span className="font-bold text-slate-800 block mt-0.5 text-[10px] sm:text-[11px] truncate">{(selectedSub.zone || 'الرئيسية').replace('المنطقة ', '')}</span>
                         </div>
                         <div className="bg-white p-1.5 sm:p-2 rounded-lg sm:rounded-xl border border-slate-100 text-center shadow-2xs">
                           <span className="text-slate-400 block text-[9px] sm:text-[10px] font-bold">القراءة السابقة</span>
@@ -2097,7 +2098,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
 
                       <div className="space-y-1.5 text-xs">
                         <div className="flex justify-between">
-                          <span className="font-bold text-slate-800">{readingSuccess.id.replace('rd-new-', 'INV-')}</span>
+                          <span className="font-bold text-slate-800">{(readingSuccess.id || '').replace('rd-new-', 'INV-')}</span>
                           <span className="text-slate-500 font-semibold">رقم الفاتورة:</span>
                         </div>
                         <div className="flex justify-between">
@@ -3161,7 +3162,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
                         </div>
                         {sub.zone && (
                           <span className="text-[9px] text-slate-400 truncate max-w-[110px]" title={sub.zone}>
-                            📍 {sub.zone.replace('المنطقة ', '')}
+                            📍 {(sub.zone || '').replace('المنطقة ', '')}
                           </span>
                         )}
                       </div>
@@ -3481,7 +3482,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
                     {settings.receiptShowZoneInfo !== false && printingJob.sub.zone && (
                       <div className="flex justify-between">
                         <span className="text-slate-500 font-bold">المنطقة:</span>
-                        <span className="font-bold">{printingJob.sub.zone.replace('المنطقة ', '')}</span>
+                        <span className="font-bold">{(printingJob.sub.zone || '').replace('المنطقة ', '')}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
@@ -3583,7 +3584,7 @@ export const CollectorDashboard: React.FC<CollectorDashboardProps> = ({
                     <div className="space-y-1.5 text-[11px] mb-4">
                       <div className="flex justify-between">
                         <span className="text-slate-500">رقم الفاتورة:</span>
-                        <span className="font-mono font-bold">{printingJob.reading.id.replace('rd-new-', 'INV-')}</span>
+                        <span className="font-mono font-bold">{(printingJob.reading.id || '').replace('rd-new-', 'INV-')}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-slate-500">فترة الفاتورة:</span>

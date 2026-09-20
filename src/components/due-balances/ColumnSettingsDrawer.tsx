@@ -39,20 +39,20 @@ export const ColumnSettingsDrawer: React.FC<ColumnSettingsDrawerProps> = ({
   const applyPreset = (preset: 'standard' | 'field' | 'financial' | 'comprehensive') => {
     switch (preset) {
       case 'field':
-        // Field Collector Preset: meter, name, phone, zone, overdue, currentDue, totalDue, notes
+        // Field Collector Preset: meter, name, phone, zone, overdue, currentDue, totalDue, fieldPaid, receiptNumber, subscriberSignature, notes
         onChangeColumns(
           columns.map(c => ({
             ...c,
-            visible: ['index', 'meterNumber', 'name', 'phone', 'zone', 'overdueAmount', 'currentDue', 'totalDue', 'notes'].includes(c.id)
+            visible: ['index', 'meterNumber', 'name', 'phone', 'zone', 'overdueAmount', 'currentDue', 'totalDue', 'fieldPaid', 'receiptNumber', 'subscriberSignature', 'notes'].includes(c.id)
           }))
         );
         break;
       case 'financial':
-        // Financial Audit Preset
+        // Financial Audit Preset: includes collectorName, opening, billed, collected, balances
         onChangeColumns(
           columns.map(c => ({
             ...c,
-            visible: ['index', 'meterNumber', 'name', 'openingBalance', 'totalBilled', 'totalCollected', 'overdueAmount', 'currentDue', 'totalDue', 'collectionRate', 'paymentStatusLabel'].includes(c.id)
+            visible: ['index', 'meterNumber', 'name', 'zone', 'collectorName', 'openingBalance', 'totalBilled', 'totalCollected', 'overdueAmount', 'currentDue', 'totalDue', 'collectionRate', 'paymentStatusLabel'].includes(c.id)
           }))
         );
         break;

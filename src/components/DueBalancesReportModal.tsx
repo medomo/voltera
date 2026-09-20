@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useDeferredValue, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import ExcelJS from 'exceljs';
 import { 
@@ -24,7 +24,6 @@ import { safePrint, printOrSaveReportPDF, downloadDirectPDF } from '../utils/exp
 import { sendSMSDirectly } from '../utils/smsService';
 import { 
   matchSubscriberSearch, 
-  HighlightMatch, 
   SearchScope 
 } from '../utils/arabicSearchUtils';
 
@@ -39,6 +38,10 @@ import { FieldNoticeModal } from './due-balances/FieldNoticeModal';
 import { ColumnSettingsDrawer } from './due-balances/ColumnSettingsDrawer';
 import { PrintStudioPanel } from './due-balances/PrintStudioPanel';
 import { LiveSheetPreview } from './due-balances/LiveSheetPreview';
+import { QuickCollectModal } from './due-balances/QuickCollectModal';
+import { DueBalancesFilters } from './due-balances/DueBalancesFilters';
+import { DueBalancesTable } from './due-balances/DueBalancesTable';
+import { DueBalancesPagination } from './due-balances/DueBalancesPagination';
 
 export const DEFAULT_COLUMNS: ColumnDefinition[] = [
   { id: 'index', label: 'م', visible: true, align: 'center', width: '40px' },
@@ -46,11 +49,15 @@ export const DEFAULT_COLUMNS: ColumnDefinition[] = [
   { id: 'name', label: 'اسم المشترك', visible: true, align: 'right' },
   { id: 'phone', label: 'رقم الهاتف', visible: true, align: 'left' },
   { id: 'zone', label: 'المنطقة / المربع', visible: true, align: 'right' },
+  { id: 'collectorName', label: 'المحصل المسؤول', visible: false, align: 'right' },
   { id: 'overdueAmount', label: 'المبالغ المتأخرة', visible: true, align: 'center', isCurrency: true },
   { id: 'currentDue', label: 'مبلغ آخر فاتورة', visible: true, align: 'center', isCurrency: true },
   { id: 'totalCollected', label: 'المبالغ المحصلة', visible: true, align: 'center', isCurrency: true },
   { id: 'totalDue', label: 'إجمالي المبلغ المطلوب', visible: true, align: 'center', isCurrency: true },
   { id: 'collectionRate', label: 'نسبة التحصيل %', visible: true, align: 'center' },
+  { id: 'fieldPaid', label: 'المحصل (يدوي)', visible: false, align: 'center', width: '75px' },
+  { id: 'receiptNumber', label: 'رقم السند', visible: false, align: 'center', width: '70px' },
+  { id: 'subscriberSignature', label: 'توقيع المشترك', visible: false, align: 'center', width: '85px' },
   { id: 'transformer', label: 'المحول', visible: false, align: 'right' },
   { id: 'tariffType', label: 'نوع الاشتراك', visible: false, align: 'center' },
   { id: 'openingBalance', label: 'الرصيد الافتتاحي', visible: false, align: 'center', isCurrency: true },
@@ -61,7 +68,7 @@ export const DEFAULT_COLUMNS: ColumnDefinition[] = [
   { id: 'lastReadingDate', label: 'تاريخ آخر قراءة', visible: false, align: 'center' },
   { id: 'lastConsumption', label: 'استهلاك آخر دورة (ك.و)', visible: false, align: 'center' },
   { id: 'status', label: 'حالة الحساب', visible: false, align: 'center' },
-  { id: 'notes', label: 'ملاحظات / التوقيع', visible: false, align: 'right' }
+  { id: 'notes', label: 'ملاحظات', visible: false, align: 'right' }
 ];
 
 export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
@@ -74,34 +81,53 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
   payments = [],
   settings,
   currentUser,
+  users = [],
+  employees = [],
+  collectorsList = [],
   onOpenSubscriberStatement,
-  onCollectPayment
+  onCollectPayment,
+  onAddPayment
 }) => {
   const [columns, setColumns] = useState<ColumnDefinition[]>(DEFAULT_COLUMNS);
   const [filterType, setFilterType] = useState<FilterType>('debtorsOnly');
   const [selectedZone, setSelectedZone] = useState('all');
   const [selectedTransformer, setSelectedTransformer] = useState('all');
+  const [selectedCollector, setSelectedCollector] = useState('all');
   const [selectedTariff, setSelectedTariff] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const [searchScope, setSearchScope] = useState<SearchScope>('all');
   const [minDebtAmount, setMinDebtAmount] = useState<number>(5000);
   const [sortBy, setSortBy] = useState<'totalDue' | 'overdueAmount' | 'currentDue' | 'collected' | 'collectionRate' | 'name' | 'meter' | 'lastPayment'>('totalDue');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   
+  // Pagination State for Instant Responsiveness
+  const [pageSize, setPageSize] = useState<number | 'all'>(25);
+  const [currentPage, setCurrentPage] = useState<number>(0);
+
+  // Reset pagination to first page when any search or filter criteria changes
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [filterType, selectedZone, selectedTransformer, selectedCollector, selectedTariff, selectedMonth, searchQuery, searchScope, sortBy, sortOrder]);
+
   // Selection state
   const [selectedSubIds, setSelectedSubIds] = useState<string[]>([]);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [smsSendingState, setSmsSendingState] = useState<string | null>(null);
+
+  // Local session payments for instant live updates on quick collection
+  const [sessionPayments, setSessionPayments] = useState<Payment[]>([]);
 
   // View Mode: Interactive Table vs Live Print A4 Sheet Preview vs Analytics
   const [viewMode, setViewMode] = useState<'table' | 'sheet_preview' | 'analytics'>('table');
   const [mobileDisplayMode, setMobileDisplayMode] = useState<'cards' | 'table'>('cards');
   const [sheetPreviewPageIndex, setSheetPreviewPageIndex] = useState<number>(0);
 
-  // Notice & Slip Modals
+  // Notice, Slip & Quick Collect Modals
   const [activeNoticeItem, setActiveNoticeItem] = useState<SubscriberBalanceItem | null>(null);
   const [activeSlipItem, setActiveSlipItem] = useState<SubscriberBalanceItem | null>(null);
+  const [activeQuickCollectItem, setActiveQuickCollectItem] = useState<SubscriberBalanceItem | null>(null);
 
   // Customization & Display options
   const [showColumnSettings, setShowColumnSettings] = useState(false);
@@ -184,7 +210,8 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       if (r.subscriberName) registerReading(`name_${r.subscriberName}`, r);
     });
 
-    (payments || []).forEach(p => {
+    const allCombinedPayments = [...payments, ...sessionPayments];
+    allCombinedPayments.forEach(p => {
       if (!p || p.isRejected || (p as any).status === 'rejected') return;
       if (p.subscriberId) registerPayment(p.subscriberId, p);
       if ((p as any).meterNumber) registerPayment(`meter_${(p as any).meterNumber}`, p);
@@ -193,7 +220,7 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
     });
 
     return { readingsBySub: rMap, paymentsBySub: pMap };
-  }, [readings, payments]);
+  }, [readings, payments, sessionPayments]);
 
   // Calculate detailed balance data for all subscribers
   const allSubscriberData = useMemo<SubscriberBalanceItem[]>(() => {
@@ -343,12 +370,39 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       const lastReadingMonth = lastReading?.billingMonth || (lastReading as any)?.readingMonth || (lastReading as any)?.month || '-';
       const lastConsumption = Number(lastReading?.consumption ?? ((lastReading?.currentReading ?? 0) - (lastReading?.previousReading ?? 0)) ?? 0);
 
+      // Determine assigned or associated collector
+      let collectorName = (sub as any).collectorName || (sub as any).collector || (sub as any).assignedCollector || '';
+      if (!collectorName && lastPayment) {
+        collectorName = (lastPayment as any).collectorName || (lastPayment as any).collectedBy || (lastPayment as any).receivedBy || '';
+      }
+      if (!collectorName) {
+        const paymentWithCollector = sortedPayments.find(p => (p as any).collectorName || (p as any).collectedBy || (p as any).receivedBy);
+        if (paymentWithCollector) {
+          collectorName = (paymentWithCollector as any).collectorName || (paymentWithCollector as any).collectedBy || (paymentWithCollector as any).receivedBy || '';
+        }
+      }
+      if (!collectorName && sub.zone && users) {
+        const zoneCollector = users.find(u => u.role === 'collector' && (u as any).zone === sub.zone);
+        if (zoneCollector) collectorName = zoneCollector.name;
+      }
+      if (!collectorName && sub.zone && employees) {
+        const zoneEmp = employees.find(e => (e.role === 'collector' || e.jobTitle?.includes('حصل')) && (e as any).zone === sub.zone);
+        if (zoneEmp) collectorName = zoneEmp.name;
+      }
+      if (!collectorName) {
+        collectorName = 'غير محدد';
+      }
+
       return {
         subscriber: sub,
         meterNumber: sub.meterNumber || '-',
         name: sub.name || 'بدون اسم',
         phone: sub.phone || '-',
         zone: sub.zone || 'غير محدد',
+        collectorName,
+        fieldPaid: '',
+        receiptNumber: '',
+        subscriberSignature: '',
         transformer: sub.transformer || 'غير محدد',
         tariffType: sub.tariffType === 'commercial' ? 'تجاري' : sub.tariffType === 'residential' ? 'سكني' : (sub.tariffType || 'عادي'),
         rawTariff: sub.tariffType || '',
@@ -373,7 +427,27 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
         notes: ''
       };
     });
-  }, [subscribers, readingsBySub, paymentsBySub]);
+  }, [subscribers, readingsBySub, paymentsBySub, users, employees]);
+
+  // Extract unique collectors
+  const uniqueCollectors = useMemo(() => {
+    const set = new Set<string>();
+    allSubscriberData.forEach(i => {
+      if (i.collectorName && i.collectorName !== 'غير محدد') set.add(i.collectorName);
+    });
+    (users || []).forEach(u => {
+      if (u.role === 'collector' && u.name) set.add(u.name);
+    });
+    (employees || []).forEach(e => {
+      if ((e.role === 'collector' || e.jobTitle?.includes('حصل') || e.department?.includes('حصل')) && e.name) {
+        set.add(e.name);
+      }
+    });
+    (collectorsList || []).forEach(c => {
+      if (c && c !== 'غير محدد') set.add(c);
+    });
+    return Array.from(set).sort();
+  }, [allSubscriberData, users, employees, collectorsList]);
 
   // Calculate real-time category counts for filter tabs
   const categoryCounts = useMemo(() => {
@@ -383,6 +457,10 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
     let fullyPaid = 0;
     let highDebtors = 0;
     let creditors = 0;
+    let agingCurrent = 0;
+    let aging31_60 = 0;
+    let aging61_90 = 0;
+    let agingOver90 = 0;
 
     allSubscriberData.forEach(item => {
       if (item.totalDue > 0) debtors++;
@@ -391,6 +469,10 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       if (item.paymentStatus === 'fully_paid') fullyPaid++;
       if (item.totalDue >= minDebtAmount) highDebtors++;
       if (item.paymentStatus === 'creditor') creditors++;
+      if (item.agingBracket === 'current') agingCurrent++;
+      if (item.agingBracket === 'days31_60') aging31_60++;
+      if (item.agingBracket === 'days61_90') aging61_90++;
+      if (item.agingBracket === 'over90') agingOver90++;
     });
 
     return {
@@ -398,9 +480,15 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       debtorsOnly: debtors,
       unpaidOnly: unpaid,
       partialOnly: partial,
+      partialPaid: partial,
       fullyPaid,
       highDebtors,
-      creditors
+      creditors,
+      creditorsOnly: creditors,
+      aging_current: agingCurrent,
+      aging_31_60: aging31_60,
+      aging_61_90: aging61_90,
+      aging_over90: agingOver90
     };
   }, [allSubscriberData, minDebtAmount]);
 
@@ -410,20 +498,24 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
     if (filterType !== 'all') count++;
     if (selectedZone !== 'all') count++;
     if (selectedTransformer !== 'all') count++;
+    if (selectedCollector !== 'all') count++;
     if (selectedTariff !== 'all') count++;
     if (selectedMonth !== 'all') count++;
     if (searchQuery.trim()) count++;
     return count;
-  }, [filterType, selectedZone, selectedTransformer, selectedTariff, selectedMonth, searchQuery]);
+  }, [filterType, selectedZone, selectedTransformer, selectedCollector, selectedTariff, selectedMonth, searchQuery]);
 
   const handleResetFilters = () => {
     setFilterType('all');
     setSelectedZone('all');
     setSelectedTransformer('all');
+    setSelectedCollector('all');
     setSelectedTariff('all');
     setSelectedMonth('all');
     setSearchQuery('');
     setSearchScope('all');
+    setPageSize(25);
+    setCurrentPage(0);
   };
 
   // Filtered & Sorted items with Arabic normalization & multi-token search
@@ -432,10 +524,10 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       // Filter by type
       if (filterType === 'debtorsOnly' && item.totalDue <= 0) return null;
       if (filterType === 'unpaidOnly' && (item.paymentStatus !== 'unpaid' || item.totalDue <= 0)) return null;
-      if (filterType === 'partialOnly' && item.paymentStatus !== 'partial') return null;
+      if ((filterType === 'partialOnly' || filterType === 'partialPaid') && item.paymentStatus !== 'partial') return null;
       if (filterType === 'fullyPaid' && item.paymentStatus !== 'fully_paid') return null;
       if (filterType === 'highDebtors' && item.totalDue < minDebtAmount) return null;
-      if (filterType === 'creditors' && item.paymentStatus !== 'creditor') return null;
+      if ((filterType === 'creditors' || filterType === 'creditorsOnly') && item.paymentStatus !== 'creditor') return null;
       if (filterType === 'aging_current' && item.agingBracket !== 'current') return null;
       if (filterType === 'aging_31_60' && item.agingBracket !== 'days31_60') return null;
       if (filterType === 'aging_61_90' && item.agingBracket !== 'days61_90') return null;
@@ -447,6 +539,9 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       // Filter by transformer
       if (selectedTransformer !== 'all' && item.transformer !== selectedTransformer) return null;
 
+      // Filter by collector
+      if (selectedCollector !== 'all' && item.collectorName !== selectedCollector) return null;
+
       // Filter by tariff
       if (selectedTariff !== 'all') {
         const match = item.tariffType.includes(selectedTariff) || item.rawTariff.includes(selectedTariff);
@@ -456,15 +551,16 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       // Filter by billing month
       if (selectedMonth !== 'all' && item.lastReadingMonth !== selectedMonth) return null;
 
-      // Smart Search Match
+      // Smart Search Match with deferred input
       let searchScore = 0;
-      if (searchQuery.trim()) {
-        const res = matchSubscriberSearch(item.subscriber, searchQuery, searchScope);
+      if (deferredSearchQuery.trim()) {
+        const res = matchSubscriberSearch(item.subscriber, deferredSearchQuery, searchScope);
         if (!res.isMatch) {
-          const normQ = searchQuery.toLowerCase().trim();
+          const normQ = deferredSearchQuery.toLowerCase().trim();
           const zoneMatch = item.zone && item.zone.toLowerCase().includes(normQ);
           const transMatch = item.transformer && item.transformer.toLowerCase().includes(normQ);
-          if (zoneMatch || transMatch) {
+          const colMatch = item.collectorName && item.collectorName.toLowerCase().includes(normQ);
+          if (zoneMatch || transMatch || colMatch) {
             searchScore = 15;
           } else {
             return null;
@@ -479,7 +575,7 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
 
     return scoredItems.sort((a, b) => {
       // If user typed search and sorting by name or score
-      if (searchQuery.trim() && a.searchScore !== b.searchScore && sortBy === 'name') {
+      if (deferredSearchQuery.trim() && a.searchScore !== b.searchScore && sortBy === 'name') {
         return b.searchScore - a.searchScore;
       }
 
@@ -496,7 +592,16 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       }
       return sortOrder === 'desc' ? -comp : comp;
     }).map(x => x.item);
-  }, [allSubscriberData, filterType, minDebtAmount, selectedZone, selectedTransformer, selectedTariff, selectedMonth, searchQuery, searchScope, sortBy, sortOrder]);
+  }, [allSubscriberData, filterType, minDebtAmount, selectedZone, selectedTransformer, selectedCollector, selectedTariff, selectedMonth, deferredSearchQuery, searchScope, sortBy, sortOrder]);
+
+  // Paginated items for ultra-fast table rendering without lag
+  const paginatedItems = useMemo(() => {
+    if (pageSize === 'all') return filteredItems;
+    const start = currentPage * pageSize;
+    return filteredItems.slice(start, start + pageSize);
+  }, [filteredItems, currentPage, pageSize]);
+
+  const startIndex = pageSize === 'all' ? 0 : currentPage * (typeof pageSize === 'number' ? pageSize : 0);
 
   // Comprehensive summary statistics
   const summaryStats = useMemo<SummaryStatistics>(() => {
@@ -699,12 +804,16 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
           case 'name': row['اسم المشترك'] = item.name; break;
           case 'phone': row['رقم الهاتف'] = item.phone; break;
           case 'zone': row['المنطقة'] = item.zone; break;
+          case 'collectorName': row['المحصل المسؤول'] = item.collectorName || '-'; break;
           case 'transformer': row['المحول'] = item.transformer; break;
           case 'tariffType': row['نوع الاشتراك'] = item.tariffType; break;
           case 'openingBalance': row['الرصيد الافتتاحي'] = item.openingBalance; break;
           case 'totalBilled': row['إجمالي الفواتير'] = item.totalBilled; break;
           case 'totalCollected': row['المبالغ المحصلة'] = item.totalCollected; break;
           case 'collectionRate': row['نسبة التحصيل %'] = `${item.collectionRate}%`; break;
+          case 'fieldPaid': row['المحصل (يدوي)'] = ''; break;
+          case 'receiptNumber': row['رقم السند'] = ''; break;
+          case 'subscriberSignature': row['توقيع المشترك'] = ''; break;
           case 'overdueAmount': row['المبالغ المتأخرة'] = item.overdueAmount; break;
           case 'currentDue': row['مبلغ آخر فاتورة'] = item.currentDue; break;
           case 'totalDue': row['إجمالي المطلوب'] = item.totalDue; break;
@@ -769,12 +878,16 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
           case 'name': return item.name;
           case 'phone': return item.phone || '-';
           case 'zone': return item.zone || '-';
+          case 'collectorName': return item.collectorName || '-';
           case 'transformer': return item.transformer || '-';
           case 'tariffType': return item.tariffType;
           case 'openingBalance': return item.openingBalance.toLocaleString();
           case 'totalBilled': return item.totalBilled.toLocaleString();
           case 'totalCollected': return item.totalCollected.toLocaleString();
           case 'collectionRate': return `${item.collectionRate}%`;
+          case 'fieldPaid': return '';
+          case 'receiptNumber': return '';
+          case 'subscriberSignature': return '';
           case 'overdueAmount': return item.overdueAmount.toLocaleString();
           case 'currentDue': return item.currentDue.toLocaleString();
           case 'totalDue': return item.totalDue.toLocaleString();
@@ -861,6 +974,49 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
   const handlePrint = () => {
     const config = getPrintableConfig();
     printOrSaveReportPDF(config);
+  };
+
+  // Quick payment confirmation handler
+  const handleQuickPaymentConfirm = async (paymentData: any) => {
+    const newPayment: Payment = {
+      id: `pay-${Date.now()}`,
+      subscriberId: paymentData.subscriberId,
+      subscriberName: paymentData.subscriberName || '',
+      amountPaid: paymentData.amountPaid,
+      paymentDate: paymentData.paymentDate,
+      paymentMethod: paymentData.paymentMethod || 'cash',
+      receivedBy: paymentData.collectorName || currentUser?.name || 'المحصل',
+      receiptNumber: paymentData.receiptNumber || `REC-${Date.now().toString().slice(-6)}`,
+      isPosted: true
+    };
+
+    setSessionPayments(prev => [newPayment, ...prev]);
+
+    if (onAddPayment) {
+      await onAddPayment(newPayment);
+    }
+    setCopyFeedback(`تم تسجيل سند تحصيل بمبلغ ${paymentData.amountPaid.toLocaleString()} ${settings.currency || 'ريال'} للمحصل (${paymentData.collectorName}) بنجاح`);
+    setTimeout(() => setCopyFeedback(null), 4000);
+  };
+
+  // Profile presets handler (Field Collector vs Financial Analysis)
+  const handleApplyPresetProfile = (type: 'field' | 'financial') => {
+    if (type === 'field') {
+      const fieldCols = ['index', 'meterNumber', 'name', 'phone', 'zone', 'collectorName', 'overdueAmount', 'currentDue', 'totalDue', 'fieldPaid', 'receiptNumber', 'subscriberSignature', 'notes'];
+      setColumns(prev => prev.map(c => ({
+        ...c,
+        visible: fieldCols.includes(c.id)
+      })));
+      setCopyFeedback('تم تفعيل نمط كشف المحصل الميداني (سندات، توقيع، تحصيل يدوي)');
+    } else {
+      const finCols = ['index', 'meterNumber', 'name', 'zone', 'collectorName', 'openingBalance', 'totalBilled', 'totalCollected', 'overdueAmount', 'currentDue', 'totalDue', 'collectionRate', 'paymentStatusLabel'];
+      setColumns(prev => prev.map(c => ({
+        ...c,
+        visible: finCols.includes(c.id)
+      })));
+      setCopyFeedback('تم تفعيل نمط كشف المستحقات المحاسبي الشامل');
+    }
+    setTimeout(() => setCopyFeedback(null), 3500);
   };
 
   // Main UI Inner Content
@@ -1102,262 +1258,51 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
       </AnimatePresence>
 
       {/* FILTERS TOOLBAR */}
-      <div className="p-3 sm:p-4 border-b border-slate-800 bg-slate-950/70 space-y-2.5 sm:space-y-3 shrink-0 print:hidden">
-        {/* Filter Tabs - Horizontal Touch Scroll for Mobile */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 no-scrollbar scroll-smooth whitespace-nowrap text-xs font-black">
-          <button
-            type="button"
-            onClick={() => setFilterType('debtorsOnly')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'debtorsOnly'
-                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span>المدينين (المطلوب سداده)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              filterType === 'debtorsOnly' ? 'bg-rose-700 text-white' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {categoryCounts.debtorsOnly}
-            </span>
-          </button>
+      <DueBalancesFilters
+        filterType={filterType}
+        onSelectFilterType={setFilterType}
+        categoryCounts={categoryCounts as any}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchScope={searchScope}
+        onSearchScopeChange={setSearchScope}
+        selectedZone={selectedZone}
+        onZoneChange={setSelectedZone}
+        uniqueZones={uniqueZones}
+        selectedTransformer={selectedTransformer}
+        onTransformerChange={setSelectedTransformer}
+        uniqueTransformers={uniqueTransformers}
+        selectedCollector={selectedCollector}
+        onCollectorChange={setSelectedCollector}
+        uniqueCollectors={uniqueCollectors}
+        selectedTariff={selectedTariff}
+        onTariffChange={setSelectedTariff}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
+        uniqueMonths={uniqueMonths}
+        sortBy={sortBy as any}
+        onSortByChange={setSortBy as any}
+        sortOrder={sortOrder}
+        onToggleSortOrder={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+        activeFiltersCount={activeFiltersCount}
+        onResetFilters={handleResetFilters}
+        onApplyProfilePreset={handleApplyPresetProfile}
+      />
 
-          <button
-            type="button"
-            onClick={() => setFilterType('unpaidOnly')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'unpaidOnly'
-                ? 'bg-red-600 text-white shadow-md shadow-red-600/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span>غير مسدد إطلاقاً (0%)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              filterType === 'unpaidOnly' ? 'bg-red-800 text-white' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {categoryCounts.unpaidOnly}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType('partialOnly')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'partialOnly'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span>سداد جزئي</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              filterType === 'partialOnly' ? 'bg-amber-600 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {categoryCounts.partialOnly}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType('fullyPaid')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'fullyPaid'
-                ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span>مسدد بالكامل (100%)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              filterType === 'fullyPaid' ? 'bg-emerald-600 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {categoryCounts.fullyPaid}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType('highDebtors')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'highDebtors'
-                ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span>كبار المدينين ({minDebtAmount.toLocaleString()}+)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              filterType === 'highDebtors' ? 'bg-orange-700 text-white' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {categoryCounts.highDebtors}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType('creditors')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'creditors'
-                ? 'bg-purple-500 text-white shadow-md shadow-purple-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span>أرصدة دائنة (فائض)</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              filterType === 'creditors' ? 'bg-purple-700 text-white' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {categoryCounts.creditors}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              filterType === 'all'
-                ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
-                : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
-            }`}
-          >
-            <span>كافة المشتركين</span>
-            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-              filterType === 'all' ? 'bg-sky-600 text-slate-950 font-black' : 'bg-slate-800 text-slate-400'
-            }`}>
-              {categoryCounts.all}
-            </span>
-          </button>
-
-          {/* Reset Filters Quick Button if Any Filter is Applied */}
-          {activeFiltersCount > 0 && (
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-500/40 transition-all cursor-pointer shrink-0 flex items-center gap-1 font-bold"
-              title="تصفير كافة الفلاتر والبحث"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>تصفير الفلاتر ({activeFiltersCount})</span>
-            </button>
-          )}
+      {/* Custom debt limit input if High Debtors selected */}
+      {filterType === 'highDebtors' && (
+        <div className="p-3 bg-orange-950/20 border-b border-orange-500/30 flex items-center gap-2 sm:gap-3 text-xs flex-wrap shrink-0 print:hidden">
+          <span className="text-orange-400 font-bold">تحديد الحد الأدنى لمديونية كبار المدينين:</span>
+          <input
+            type="number"
+            value={minDebtAmount}
+            onChange={e => setMinDebtAmount(Number(e.target.value) || 0)}
+            className="w-28 sm:w-32 bg-slate-900 border border-orange-500/50 rounded-lg px-2.5 py-1 text-white font-mono font-bold outline-none"
+            placeholder="5000"
+          />
+          <span className="text-slate-400 font-mono">{settings.currency || 'ريال'}</span>
         </div>
-
-        {/* Sub-Filters: Search with Scope, Zone, Transformer, Tariff, Month, Sort */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {/* Smart Search with Scope Selector */}
-          <div className="relative col-span-1 sm:col-span-2 md:col-span-1 lg:col-span-2 flex items-center bg-slate-900 border border-slate-800 rounded-xl focus-within:border-amber-500 transition-colors">
-            <Search className="w-4 h-4 text-slate-500 mr-2.5 shrink-0" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="بحث ذكي: الاسم، العداد، الهاتف، المربع..."
-              className="w-full bg-transparent pr-2 pl-2 py-2 text-xs text-white placeholder:text-slate-500 outline-none"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="p-1.5 text-slate-400 hover:text-white cursor-pointer"
-                title="مسح البحث"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {/* Search Scope Pill Selector */}
-            <select
-              value={searchScope}
-              onChange={e => setSearchScope(e.target.value as SearchScope)}
-              className="bg-slate-950 border-r border-slate-800 text-[10px] text-amber-400 font-bold px-2 py-1.5 rounded-l-xl outline-none cursor-pointer shrink-0"
-              title="نطاق البحث"
-            >
-              <option value="all">🔍 شامل</option>
-              <option value="name">👤 الاسم</option>
-              <option value="meter">🔢 العداد</option>
-              <option value="phone">📱 الهاتف</option>
-              <option value="zone">📍 المربع</option>
-            </select>
-          </div>
-
-          {/* Zones */}
-          <div>
-            <select
-              value={selectedZone}
-              onChange={e => setSelectedZone(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500 cursor-pointer"
-            >
-              <option value="all">كل المناطق / المربعات</option>
-              {uniqueZones.map(z => <option key={z} value={z}>{z}</option>)}
-            </select>
-          </div>
-
-          {/* Transformers */}
-          <div>
-            <select
-              value={selectedTransformer}
-              onChange={e => setSelectedTransformer(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500 cursor-pointer"
-            >
-              <option value="all">كل المحولات</option>
-              {uniqueTransformers.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          {/* Tariff */}
-          <div>
-            <select
-              value={selectedTariff}
-              onChange={e => setSelectedTariff(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-amber-500 cursor-pointer"
-            >
-              <option value="all">كل أنواع الاشتراكات</option>
-              <option value="منزلي">سكني / منزلي</option>
-              <option value="تجاري">تجاري</option>
-              <option value="زراعي">زراعي</option>
-              <option value="حكومي">حكومي</option>
-              <option value="صناعي">صناعي</option>
-            </select>
-          </div>
-
-          {/* Sort */}
-          <div className="flex items-center gap-1.5">
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as any)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-300 outline-none focus:border-amber-500 cursor-pointer"
-            >
-              <option value="totalDue">ترتيب: المبلغ المطلوب</option>
-              <option value="collected">ترتيب: المبالغ المحصلة</option>
-              <option value="collectionRate">ترتيب: نسبة التحصيل %</option>
-              <option value="overdueAmount">ترتيب: المتأخرات السابقة</option>
-              <option value="currentDue">ترتيب: مبلغ آخر فاتورة</option>
-              <option value="name">ترتيب: اسم المشترك</option>
-              <option value="meter">ترتيب: رقم العداد</option>
-              <option value="lastPayment">ترتيب: تاريخ آخر سداد</option>
-            </select>
-
-            <button
-              type="button"
-              onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-              className="p-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white cursor-pointer shrink-0"
-              title={sortOrder === 'desc' ? 'تنازلي' : 'تصاعدي'}
-            >
-              <ArrowUpDown className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Custom debt limit input if High Debtors selected */}
-        {filterType === 'highDebtors' && (
-          <div className="flex items-center gap-2 sm:gap-3 bg-orange-950/20 border border-orange-500/30 p-2 sm:p-2.5 rounded-xl text-xs flex-wrap">
-            <span className="text-orange-400 font-bold">تحديد الحد الأدنى لمديونية كبار المدينين:</span>
-            <input
-              type="number"
-              value={minDebtAmount}
-              onChange={e => setMinDebtAmount(Number(e.target.value) || 0)}
-              className="w-28 sm:w-32 bg-slate-900 border border-orange-500/50 rounded-lg px-2.5 py-1 text-white font-mono font-bold outline-none"
-              placeholder="5000"
-            />
-            <span className="text-slate-400 font-mono">{settings.currency || 'ريال'}</span>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Quick Metrics & Financial Summary Bar */}
       <div className="p-2.5 sm:p-4 bg-slate-950/40 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3 border-b border-slate-800/80 shrink-0 print:hidden text-xs">
@@ -1586,12 +1531,17 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
               items={allSubscriberData}
               selectedZone={selectedZone}
               selectedTransformer={selectedTransformer}
+              selectedCollector={selectedCollector}
               onSelectZone={(z) => {
                 setSelectedZone(z);
                 setViewMode('table');
               }}
               onSelectTransformer={(t) => {
                 setSelectedTransformer(t);
+                setViewMode('table');
+              }}
+              onSelectCollector={(c) => {
+                setSelectedCollector(c);
                 setViewMode('table');
               }}
               settings={settings}
@@ -1619,470 +1569,41 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
               </div>
             )}
 
-            {/* Mobile / Tablet Layout Switcher (Cards vs Wide Table) */}
-            <div className="flex items-center justify-between gap-2 lg:hidden bg-slate-950 p-2 rounded-2xl border border-slate-800 text-xs font-bold print:hidden">
-              <div className="flex items-center gap-2 text-slate-400">
-                <Smartphone className="w-4 h-4 text-amber-400" />
-                <span>طريقة العرض للجوال:</span>
-              </div>
-              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1">
-                <button
-                  type="button"
-                  onClick={() => setMobileDisplayMode('cards')}
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all ${
-                    mobileDisplayMode === 'cards'
-                      ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  <span>بطاقات</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMobileDisplayMode('table')}
-                  className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer transition-all ${
-                    mobileDisplayMode === 'table'
-                      ? 'bg-amber-500 text-slate-950 font-black shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Table2 className="w-3.5 h-3.5" />
-                  <span>جدول</span>
-                </button>
-              </div>
-            </div>
+            {/* High Performance Responsive Table & Mobile Cards */}
+            <DueBalancesTable
+              items={paginatedItems}
+              startIndex={startIndex}
+              totalFilteredCount={filteredItems.length}
+              columns={columns}
+              selectedSubIds={selectedSubIds}
+              onToggleSelect={handleToggleSelect}
+              onToggleSelectAll={handleToggleSelectAll}
+              isAllSelected={filteredItems.length > 0 && selectedSubIds.length === filteredItems.length}
+              mobileDisplayMode={mobileDisplayMode}
+              onSetMobileDisplayMode={setMobileDisplayMode}
+              searchQuery={searchQuery}
+              settings={settings}
+              currentUser={currentUser}
+              onOpenSubscriberStatement={onOpenSubscriberStatement}
+              onCollectPayment={onCollectPayment}
+              onQuickCollectClick={setActiveQuickCollectItem}
+              onNoticeClick={setActiveNoticeItem}
+              onSlipClick={setActiveSlipItem}
+              summaryStats={summaryStats}
+              showTotalsRow={showTotalsRow}
+            />
 
-            {/* RESPONSIVE MOBILE CARDS VIEW (When active on phones/tablets) */}
-            {mobileDisplayMode === 'cards' && (
-              <div className="block lg:hidden space-y-3 print:hidden">
-                <div className="flex items-center justify-between px-1 text-xs text-slate-400 font-bold">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={filteredItems.length > 0 && selectedSubIds.length === filteredItems.length}
-                      onChange={handleToggleSelectAll}
-                      className="rounded accent-amber-500 cursor-pointer w-4 h-4"
-                    />
-                    <span>تحديد كل المشتركين ({filteredItems.length})</span>
-                  </label>
-                  <span>عرض {filteredItems.length} مشترك</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {filteredItems.map((item, index) => {
-                    const isSelected = selectedSubIds.includes(item.subscriber.id);
-                    const isDebtor = item.totalDue > 0;
-
-                    return (
-                      <div
-                        key={`card-${item.subscriber.id}`}
-                        className={`p-3.5 rounded-2xl border transition-all ${
-                          isSelected
-                            ? 'bg-slate-900 border-amber-500/80 shadow-md shadow-amber-500/10'
-                            : isDebtor
-                            ? 'bg-slate-950/80 border-slate-800 hover:border-slate-700'
-                            : 'bg-slate-950/40 border-slate-900'
-                        }`}
-                      >
-                        {/* Card Header: Checkbox + Name + Status */}
-                        <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-800/80">
-                          <div className="flex items-start gap-2.5 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleSelect(item.subscriber.id)}
-                              className="rounded accent-amber-500 cursor-pointer w-4 h-4 mt-1 shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-mono text-slate-500">#{index + 1}</span>
-                                <h4 className="text-sm font-black text-white truncate">
-                                  <HighlightMatch text={item.name} query={searchQuery} />
-                                </h4>
-                              </div>
-                              <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5 flex-wrap font-mono">
-                                <span>عداد: <strong className="text-amber-400"><HighlightMatch text={item.meterNumber} query={searchQuery} /></strong></span>
-                                {item.zone && item.zone !== '-' && (
-                                  <span>• <HighlightMatch text={item.zone} query={searchQuery} /></span>
-                                )}
-                                {item.transformer && item.transformer !== '-' && (
-                                  <span>• <HighlightMatch text={item.transformer} query={searchQuery} /></span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
-                            item.paymentStatus === 'fully_paid'
-                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                              : item.paymentStatus === 'partial'
-                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                              : item.paymentStatus === 'creditor'
-                              ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
-                              : 'bg-rose-500/15 text-rose-300 border border-rose-500/30'
-                          }`}>
-                            {item.paymentStatusLabel}
-                          </span>
-                        </div>
-
-                        {/* Financial Metrics Grid */}
-                        <div className="grid grid-cols-2 gap-2 my-2.5 text-xs bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/60">
-                          <div>
-                            <span className="text-[10px] text-slate-400 block font-bold">المطلوب القائم:</span>
-                            <span className={`text-sm font-mono font-black ${item.totalDue > 0 ? 'text-sky-400' : 'text-slate-400'}`}>
-                              {item.totalDue.toLocaleString()} {settings.currency || 'ريال'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 block font-bold">المحصل:</span>
-                            <span className="text-sm font-mono font-black text-emerald-400">
-                              {item.totalCollected.toLocaleString()} {settings.currency || 'ريال'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 block font-bold">المتأخرات السابقة:</span>
-                            <span className={`text-xs font-mono font-bold ${item.overdueAmount > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
-                              {item.overdueAmount.toLocaleString()} {settings.currency || 'ريال'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[10px] text-slate-400 block font-bold">آخر فاتورة:</span>
-                            <span className="text-xs font-mono font-bold text-amber-400">
-                              {item.currentDue.toLocaleString()} {settings.currency || 'ريال'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Collection Rate & Last Payment Details */}
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 mb-2.5 font-bold">
-                          <div className="flex items-center gap-1.5">
-                            <span>نسبة التحصيل:</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black ${
-                              item.collectionRate >= 80 ? 'bg-emerald-500/20 text-emerald-300' : item.collectionRate >= 40 ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'
-                            }`}>
-                              {item.collectionRate}%
-                            </span>
-                          </div>
-                          {item.lastPaymentDate !== '-' && (
-                            <span className="text-[10px] text-slate-500">
-                              آخر سداد: {item.lastPaymentDate}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Card Action Buttons (Touch Friendly) */}
-                        <div className="flex items-center gap-1.5 pt-2 border-t border-slate-800/80">
-                          {item.phone && item.phone !== '-' && (
-                            <a
-                              href={`tel:${item.phone.replace(/[^0-9]/g, '')}`}
-                              className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                            >
-                              <PhoneCall className="w-3.5 h-3.5" />
-                              <span>اتصال</span>
-                            </a>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => setActiveNoticeItem(item)}
-                            className="flex-1 py-2 bg-emerald-950/60 hover:bg-emerald-800 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                          >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span>واتساب</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => setActiveSlipItem(item)}
-                            className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                            title="إشعار مطالبة"
-                          >
-                            <FileDown className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">إشعار</span>
-                          </button>
-
-                          {onOpenSubscriberStatement && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenSubscriberStatement(item.subscriber)}
-                              className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                              title="كشف حساب"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {filteredItems.length === 0 && (
-                    <div className="p-8 text-center text-slate-500 font-bold col-span-full bg-slate-950/40 rounded-2xl border border-slate-800">
-                      لا توجد بيانات مطابقة لمعايير الفلترة المحددة.
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* The Main Table Container (Visible on Desktop OR when Table view chosen on mobile) */}
-            <div className={`${mobileDisplayMode === 'cards' ? 'hidden lg:block' : 'block'} overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 shadow-xl print:block print:border-none print:shadow-none print:bg-white print:overflow-visible`}>
-              <table className="w-full text-right border-collapse text-xs print:text-black min-w-[700px] lg:min-w-full">
-                {/* TABLE HEADER */}
-                <thead className="bg-slate-900 text-slate-300 font-bold border-b border-slate-800 select-none print:bg-slate-100 print:text-black print:border-b-2 print:border-black sticky top-0 z-10">
-                  <tr>
-                    <th className="p-3 text-center w-10 print:hidden">
-                      <input
-                        type="checkbox"
-                        checked={filteredItems.length > 0 && selectedSubIds.length === filteredItems.length}
-                        onChange={handleToggleSelectAll}
-                        className="rounded accent-amber-500 cursor-pointer"
-                        title="تحديد الكل"
-                      />
-                    </th>
-
-                    {visibleColumns.map(col => (
-                      <th
-                        key={col.id}
-                        style={{ width: col.width }}
-                        className={`p-3 font-black text-slate-200 print:text-black print:border print:border-black whitespace-nowrap ${
-                          col.align === 'center' ? 'text-center' : col.align === 'left' ? 'text-left' : 'text-right'
-                        }`}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
-
-                    <th className="p-3 text-center w-24 print:hidden whitespace-nowrap">إجراءات سريعة</th>
-                  </tr>
-                </thead>
-
-                {/* TABLE BODY */}
-                <tbody className="divide-y divide-slate-800/60 print:divide-slate-300">
-                  {filteredItems.map((item, index) => {
-                    const isSelected = selectedSubIds.includes(item.subscriber.id);
-                    const isDebtor = item.totalDue > 0;
-                    const isCreditor = item.paymentStatus === 'creditor';
-
-                    return (
-                      <React.Fragment key={item.subscriber.id}>
-                        <tr 
-                          className={`transition-colors ${
-                            isSelected
-                              ? 'bg-amber-500/10 hover:bg-amber-500/15'
-                              : isDebtor
-                              ? 'hover:bg-slate-900/80 bg-slate-950'
-                              : 'hover:bg-slate-900/60 bg-slate-950/40'
-                          } print:bg-white`}
-                        >
-                          {/* Selection Checkbox */}
-                          <td className="p-3 text-center print:hidden">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleToggleSelect(item.subscriber.id)}
-                              className="rounded accent-amber-500 cursor-pointer"
-                            />
-                          </td>
-
-                          {/* Dynamic Data Cells */}
-                          {visibleColumns.map(col => {
-                            let val: React.ReactNode = '';
-                            switch (col.id) {
-                              case 'index':
-                                val = index + 1;
-                                break;
-                              case 'meterNumber':
-                                val = <span className="font-mono font-bold text-amber-400 print:text-black"><HighlightMatch text={item.meterNumber} query={searchQuery} /></span>;
-                                break;
-                              case 'name':
-                                val = <span className="font-bold text-white print:text-black"><HighlightMatch text={item.name} query={searchQuery} /></span>;
-                                break;
-                              case 'phone':
-                                val = (
-                                  <span className="font-mono text-slate-300 print:text-black flex items-center justify-start gap-1">
-                                    {item.phone && item.phone !== '-' ? (
-                                      <a 
-                                        href={`tel:${item.phone.replace(/[^0-9]/g, '')}`}
-                                        className="hover:text-amber-400 transition-colors flex items-center gap-1"
-                                        title="اتصال هاتفي"
-                                      >
-                                        <PhoneCall className="w-3 h-3 text-emerald-400" />
-                                        <span><HighlightMatch text={item.phone} query={searchQuery} /></span>
-                                      </a>
-                                    ) : '-'}
-                                  </span>
-                                );
-                                break;
-                              case 'zone':
-                                val = <HighlightMatch text={item.zone} query={searchQuery} />;
-                                break;
-                              case 'transformer':
-                                val = <HighlightMatch text={item.transformer} query={searchQuery} />;
-                                break;
-                              case 'tariffType':
-                                val = <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 print:bg-transparent print:text-black text-[11px]">{item.tariffType}</span>;
-                                break;
-                              case 'openingBalance':
-                                val = <span className="font-mono text-slate-300">{item.openingBalance.toLocaleString()}</span>;
-                                break;
-                              case 'totalBilled':
-                                val = <span className="font-mono text-amber-300">{item.totalBilled.toLocaleString()}</span>;
-                                break;
-                              case 'totalCollected':
-                                val = <span className="font-mono font-black text-emerald-400 print:text-black">{item.totalCollected.toLocaleString()}</span>;
-                                break;
-                              case 'collectionRate':
-                                val = `${item.collectionRate}%`;
-                                break;
-                              case 'overdueAmount':
-                                val = (
-                                  <span className={`font-mono font-bold ${item.overdueAmount > 0 ? 'text-rose-400 print:text-black' : 'text-slate-500'}`}>
-                                    {item.overdueAmount.toLocaleString()}
-                                  </span>
-                                );
-                                break;
-                              case 'currentDue':
-                                val = (
-                                  <span className={`font-mono font-bold ${item.currentDue > 0 ? 'text-amber-400 print:text-black' : 'text-slate-500'}`}>
-                                    {item.currentDue.toLocaleString()}
-                                  </span>
-                                );
-                                break;
-                              case 'totalDue':
-                                val = (
-                                  <span className={`font-mono font-black text-sm ${item.totalDue > 0 ? 'text-sky-400 print:text-black' : 'text-slate-500'}`}>
-                                    {item.totalDue.toLocaleString()}
-                                  </span>
-                                );
-                                break;
-                              case 'paymentStatusLabel':
-                                val = item.paymentStatusLabel;
-                                break;
-                              case 'lastPaymentDate':
-                                val = item.lastPaymentDate;
-                                break;
-                              case 'lastPaymentAmount':
-                                val = item.lastPaymentAmount.toLocaleString();
-                                break;
-                              case 'lastReadingDate':
-                                val = item.lastReadingDate;
-                                break;
-                              case 'lastConsumption':
-                                val = item.lastConsumption ? `${item.lastConsumption} ك.و` : '-';
-                                break;
-                              case 'status':
-                                val = item.status;
-                                break;
-                              case 'notes':
-                                val = <div className="min-w-[100px] h-5 border-b border-dotted border-slate-700 print:border-black" />;
-                                break;
-                            }
-
-                            return (
-                              <td
-                                key={col.id}
-                                className={`p-3 print:border print:border-black ${
-                                  col.align === 'center' ? 'text-center' : col.align === 'left' ? 'text-left' : 'text-right'
-                                }`}
-                              >
-                                {col.id === 'collectionRate' ? (
-                                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-black ${
-                                    item.collectionRate >= 80 ? 'bg-emerald-500/20 text-emerald-300' : item.collectionRate >= 40 ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'
-                                  }`}>
-                                    {item.collectionRate}%
-                                  </span>
-                                ) : col.id === 'paymentStatusLabel' ? (
-                                  <span className={`px-2 py-0.5 rounded-lg text-[10px] ${
-                                    item.paymentStatus === 'fully_paid' ? 'bg-emerald-500/15 text-emerald-300' : item.paymentStatus === 'partial' ? 'bg-amber-500/15 text-amber-300' : item.paymentStatus === 'creditor' ? 'bg-purple-500/15 text-purple-300' : 'bg-rose-500/15 text-rose-300'
-                                  }`}>
-                                    {val}
-                                  </span>
-                                ) : val}
-                              </td>
-                            );
-                          })}
-
-                          {/* Inline Action Buttons */}
-                          <td className="p-3 text-center print:hidden">
-                            <div className="flex items-center justify-center gap-1">
-                              {/* Open Subscriber Statement */}
-                              {onOpenSubscriberStatement && (
-                                <button
-                                  type="button"
-                                  onClick={() => onOpenSubscriberStatement(item.subscriber)}
-                                  className="p-1.5 bg-slate-900 hover:bg-amber-500 text-slate-300 hover:text-slate-950 rounded-lg transition-colors cursor-pointer"
-                                  title="كشف حساب المشترك التفصيلي"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-
-                              {/* WhatsApp Notice Dialog */}
-                              <button
-                                type="button"
-                                onClick={() => setActiveNoticeItem(item)}
-                                className="p-1.5 bg-emerald-950/70 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-lg transition-colors cursor-pointer"
-                                title="إرسال إشعار / رسالة واتساب"
-                              >
-                                <MessageCircle className="w-3.5 h-3.5" />
-                              </button>
-
-                              {/* Print Single Field Demand Slip */}
-                              <button
-                                type="button"
-                                onClick={() => setActiveSlipItem(item)}
-                                className="p-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-lg transition-colors cursor-pointer"
-                                title="طباعة إشعار مطالبة رسمي ميداني"
-                              >
-                                <FileDown className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-
-                        {/* Page break marker */}
-                        {(index + 1) % rowsPerPage === 0 && index + 1 < filteredItems.length && (
-                          <tr key={`divider-${index}`} className="bg-slate-900/90 border-y-2 border-dashed border-amber-500/30 print:hidden select-none">
-                            <td colSpan={visibleColumns.length + 2} className="py-2 px-4 text-center font-bold text-[11px] text-amber-400">
-                              <span>─── فاصل صفحة الطباعة: نهاية صفحة {Math.floor((index + 1) / rowsPerPage)} • بداية صفحة {Math.floor((index + 1) / rowsPerPage) + 1} ───</span>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-
-                  {filteredItems.length === 0 && (
-                    <tr>
-                      <td colSpan={visibleColumns.length + 2} className="p-8 text-center text-slate-500 font-bold print:text-black">
-                        لا توجد بيانات مطابقة لمعايير الفلترة المحددة.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-
-                {/* TOTALS SUMMARY FOOTER */}
-                {showTotalsRow && visibleColumns.length > 0 && (
-                  <tfoot className="bg-slate-900 font-black border-t-2 border-slate-700 text-white print:bg-slate-200 print:text-black print:border-black">
-                    <tr>
-                      <td className="p-3 text-center print:hidden">#</td>
-                      {visibleColumns.map((col, idx) => {
-                        if (idx === 0) return <td key={col.id} className="p-3 text-center font-bold text-slate-300 print:text-black print:border">الإجمالي العام</td>;
-                        if (col.id === 'totalCollected') return <td key={col.id} className="p-3 text-center font-mono text-emerald-400 print:text-black print:border">{summaryStats.totalCollected.toLocaleString()}</td>;
-                        if (col.id === 'collectionRate') return <td key={col.id} className="p-3 text-center font-mono text-emerald-400 print:text-black print:border">{summaryStats.overallCollectionRate}%</td>;
-                        if (col.id === 'overdueAmount') return <td key={col.id} className="p-3 text-center font-mono text-rose-400 print:text-black print:border">{summaryStats.totalOverdue.toLocaleString()}</td>;
-                        if (col.id === 'currentDue') return <td key={col.id} className="p-3 text-center font-mono text-amber-400 print:text-black print:border">{summaryStats.totalCurrentDue.toLocaleString()}</td>;
-                        if (col.id === 'totalDue') return <td key={col.id} className="p-3 text-center font-mono text-sky-400 print:text-black print:border">{summaryStats.totalDueSum.toLocaleString()}</td>;
-                        return <td key={col.id} className="p-3 print:border">{idx === 1 ? `(${filteredItems.length} مشترك)` : ''}</td>;
-                      })}
-                      <td className="p-3 print:hidden"></td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
+            {/* Pagination Controls */}
+            <DueBalancesPagination
+              totalItems={filteredItems.length}
+              pageSize={pageSize}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(0);
+              }}
+            />
 
             {/* Print Signatures */}
             {showSignatures && (
@@ -2177,6 +1698,17 @@ export const DueBalancesReportModal: React.FC<DueBalancesReportModalProps> = ({
           onClose={() => setActiveSlipItem(null)}
           settings={settings}
           currentUser={currentUser}
+        />
+      )}
+
+      {activeQuickCollectItem && (
+        <QuickCollectModal
+          item={activeQuickCollectItem}
+          onClose={() => setActiveQuickCollectItem(null)}
+          settings={settings}
+          currentUser={currentUser}
+          collectorsList={uniqueCollectors}
+          onConfirmPayment={handleQuickPaymentConfirm}
         />
       )}
     </>

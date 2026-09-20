@@ -138,7 +138,7 @@ export const AgingStatementsView: React.FC<AgingStatementsViewProps> = ({
     const headers = ['رقم الحساب', 'اسم المشترك', 'رقم العداد', 'المنطقة', 'الهاتف', 'إجمالي المديونية', 'أيام التأخر التقريبية', 'شريحة العمر', 'درجة المخاطرة', 'آخر سداد'];
     const rows = filteredList.map(s => [
       s.subscriberCode || s.id,
-      s.name.replace(/,/g, ' - '),
+      (s.name || '').replace(/,/g, ' - '),
       s.meterNumber,
       s.zone || 'الرئيسية',
       s.phone || '',

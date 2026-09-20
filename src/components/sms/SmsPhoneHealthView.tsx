@@ -37,10 +37,11 @@ export const SmsPhoneHealthView: React.FC<SmsPhoneHealthViewProps> = ({
   const [toastNotice, setToastNotice] = useState<string | null>(null);
 
   const getPhoneStatus = (phone?: string): { status: 'valid' | 'missing' | 'invalid'; operator: string; label: string } => {
-    if (!phone || !phone.trim()) {
+    const rawStr = String(phone || '').trim();
+    if (!rawStr) {
       return { status: 'missing', operator: 'none', label: 'بدون رقم هاتف' };
     }
-    const clean = phone.replace(/[^0-9]/g, '');
+    const clean = rawStr.replace(/[^0-9]/g, '');
     
     // Yemen Mobile Format
     if (clean.startsWith('77') || clean.startsWith('78') || (clean.startsWith('96777') || clean.startsWith('96778'))) {
@@ -129,7 +130,7 @@ export const SmsPhoneHealthView: React.FC<SmsPhoneHealthViewProps> = ({
     const headers = ['المعرف', 'اسم المشترك', 'رقم العداد', 'المنطقة', 'الرقم الحالي', 'حالة الرقم'];
     const rows = missing.map(s => [
       s.id,
-      `"${s.name.replace(/"/g, '""')}"`,
+      `"${(s.name || '').replace(/"/g, '""')}"`,
       `"${s.meterNumber}"`,
       `"${s.zone || ''}"`,
       `"${s.phone || ''}"`,

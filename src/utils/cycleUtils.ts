@@ -14,7 +14,7 @@ export function getDecadalPeriodInfo(dateInput?: Date | string): DecadalPeriodIn
   let dateObj = new Date();
   if (dateInput) {
     if (typeof dateInput === 'string') {
-      const parsed = new Date(dateInput.replace(' ', 'T'));
+      const parsed = new Date(String(dateInput).replace(' ', 'T'));
       if (!isNaN(parsed.getTime())) {
         dateObj = parsed;
       }
@@ -75,7 +75,7 @@ export function getReadingCycleStatus(
   }
 
   try {
-    const lastTime = new Date(lastReadingDateStr.replace(' ', 'T')).getTime();
+    const lastTime = new Date(String(lastReadingDateStr).replace(' ', 'T')).getTime();
     const nowTime = new Date().getTime();
     if (isNaN(lastTime)) throw new Error('Invalid date');
 

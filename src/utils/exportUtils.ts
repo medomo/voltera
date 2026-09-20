@@ -902,7 +902,7 @@ export const downloadDirectPDF = async (
       doc.addImage(imgData, 'JPEG', marginX, marginY, targetWidth, targetHeight, undefined, 'FAST');
     }
 
-    const defaultFilename = `${config.title.replace(/\s+/g, '_')}_${new Date().toISOString().substring(0, 10)}.pdf`;
+    const defaultFilename = `${(config.title || 'report').replace(/\s+/g, '_')}_${new Date().toISOString().substring(0, 10)}.pdf`;
     doc.save(customFilename || defaultFilename);
   } finally {
     if (iframe.parentNode) {

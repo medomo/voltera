@@ -86,7 +86,7 @@ export function calculateSmsSegments(text: string): {
  */
 export function formatPhoneNumberForWhatsApp(phone: string): string {
   if (!phone) return '';
-  let clean = phone.replace(/[^0-9]/g, '');
+  let clean = String(phone).replace(/[^0-9]/g, '');
   
   // If local Yemen 9-digit format starting with 7 (e.g. 771234567, 731234567, 711234567, 701234567)
   if (clean.length === 9 && clean.startsWith('7')) {
@@ -385,7 +385,7 @@ export async function testSmsGatewayConnection(
     };
   }
 
-  const cleanPhone = testPhone.trim().replace(/\s+/g, '');
+  const cleanPhone = String(testPhone || '').trim().replace(/\s+/g, '');
   if (!cleanPhone) {
     return {
       success: false,
@@ -502,7 +502,7 @@ export async function sendSMSDirectly(
     batchId?: string;
   }
 ): Promise<SendSMSResult> {
-  const cleanPhone = phone.trim().replace(/\s+/g, '');
+  const cleanPhone = String(phone || '').trim().replace(/\s+/g, '');
 
   if (!cleanPhone) {
     return {

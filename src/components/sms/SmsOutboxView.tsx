@@ -95,7 +95,7 @@ export const SmsOutboxView: React.FC<SmsOutboxViewProps> = ({ settings }) => {
       l.type || 'custom',
       l.method,
       l.status,
-      `"${l.message.replace(/"/g, '""').replace(/\n/g, ' ')}"`
+      `"${(l.message || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

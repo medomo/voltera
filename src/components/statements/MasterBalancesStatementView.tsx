@@ -161,7 +161,7 @@ export const MasterBalancesStatementView: React.FC<MasterBalancesStatementViewPr
     const headers = ['رقم الحساب', 'اسم المشترك', 'رقم العداد', 'المنطقة', 'التعرفة', 'رقم الهاتف', 'رصيد سابق', 'إجمالي الفواتير', 'إجمالي المسدد', 'الرصيد النهائي', 'الحالة'];
     const rows = filteredAndSortedList.map(s => [
       s.subscriberCode || s.id,
-      s.name.replace(/,/g, ' - '),
+      (s.name || '').replace(/,/g, ' - '),
       s.meterNumber,
       s.zone || 'الرئيسية',
       s.tariffType === 'residential' ? 'سكني' : s.tariffType === 'commercial' ? 'تجاري' : 'صناعي',

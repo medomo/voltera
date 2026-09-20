@@ -697,7 +697,7 @@ export const AdminHR: React.FC<AdminHRProps> = ({
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const salVoucherNo = `SAL-${selectedMonth.replace('-', '')}-${emp.code || emp.id.slice(-3)}`;
+    const salVoucherNo = `SAL-${(selectedMonth || '').replace('-', '')}-${emp.code || emp.id.slice(-3)}`;
 
     const salaryTx: EmployeeTransaction = {
       id: `sal-${Date.now()}`,

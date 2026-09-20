@@ -128,7 +128,7 @@ export const PartnerRegistryTab: React.FC<PartnerRegistryTabProps> = ({
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm font-mono">
-                        {partner.code.replace('PRT-', '')}
+                        {(partner.code || '').replace('PRT-', '') || partner.code || ''}
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-white group-hover:text-amber-400 transition">

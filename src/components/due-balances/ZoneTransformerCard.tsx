@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Zap, ArrowRight, Percent, Users, Wallet, Filter } from 'lucide-react';
+import { Building2, Zap, ArrowRight, Percent, Users, Wallet, Filter, UserCheck, ShieldCheck } from 'lucide-react';
 import { SubscriberBalanceItem } from './types';
 import { SystemSettings } from '../../types';
 
@@ -7,8 +7,10 @@ interface ZoneTransformerCardProps {
   items: SubscriberBalanceItem[];
   selectedZone: string;
   selectedTransformer: string;
+  selectedCollector?: string;
   onSelectZone: (zone: string) => void;
   onSelectTransformer: (transformer: string) => void;
+  onSelectCollector?: (collector: string) => void;
   settings: SystemSettings;
 }
 
@@ -16,12 +18,59 @@ export const ZoneTransformerCard: React.FC<ZoneTransformerCardProps> = ({
   items,
   selectedZone,
   selectedTransformer,
+  selectedCollector = 'all',
   onSelectZone,
   onSelectTransformer,
+  onSelectCollector,
   settings
 }) => {
-  const [activeTab, setActiveTab] = useState<'zones' | 'transformers'>('zones');
+  const [activeTab, setActiveTab] = useState<'collectors' | 'zones' | 'transformers'>('collectors');
   const currency = settings.currency || 'ريال';
+
+  // Group by collector
+  const collectorStats = React.useMemo(() => {
+    const map = new Map<string, {
+      name: string;
+      count: number;
+      totalDue: number;
+      totalCollected: number;
+      totalOverdue: number;
+      totalCurrent: number;
+      collectionRate: number;
+      debtorsCount: number;
+    }>();
+
+    items.forEach(item => {
+      const cName = item.collectorName || 'غير مسند لمحصل';
+      if (!map.has(cName)) {
+        map.set(cName, {
+          name: cName,
+          count: 0,
+          totalDue: 0,
+          totalCollected: 0,
+          totalOverdue: 0,
+          totalCurrent: 0,
+          collectionRate: 0,
+          debtorsCount: 0
+        });
+      }
+      const st = map.get(cName)!;
+      st.count += 1;
+      st.totalDue += item.totalDue > 0 ? item.totalDue : 0;
+      st.totalCollected += item.totalCollected;
+      st.totalOverdue += item.overdueAmount;
+      st.totalCurrent += item.currentDue;
+      if (item.totalDue > 0) {
+        st.debtorsCount += 1;
+      }
+    });
+
+    return Array.from(map.values()).map(st => {
+      const obligation = st.totalDue + st.totalCollected;
+      st.collectionRate = obligation > 0 ? Math.round((st.totalCollected / obligation) * 100) : 0;
+      return st;
+    }).sort((a, b) => b.totalCollected - a.totalCollected || b.totalDue - a.totalDue);
+  }, [items]);
 
   // Group by zone
   const zoneStats = React.useMemo(() => {
@@ -107,14 +156,32 @@ export const ZoneTransformerCard: React.FC<ZoneTransformerCardProps> = ({
     <div className="bg-slate-950/70 border border-slate-800 p-4 rounded-2xl space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
         <div className="flex items-center gap-2">
-          <Building2 className="w-4 h-4 text-amber-400" />
+          {activeTab === 'collectors' ? (
+            <UserCheck className="w-4 h-4 text-emerald-400" />
+          ) : activeTab === 'zones' ? (
+            <Building2 className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Zap className="w-4 h-4 text-sky-400" />
+          )}
           <h3 className="text-xs font-black text-white">
-            مؤشرات التحصيل والمديونيات حسب المناطق والمحولات
+            مؤشرات التحصيل والمديونيات حسب المحصلين والمناطق والمحولات
           </h3>
         </div>
 
         {/* Tab Switcher */}
         <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setActiveTab('collectors')}
+            className={`px-3 py-1 rounded-lg cursor-pointer transition-all flex items-center gap-1.5 ${
+              activeTab === 'collectors'
+                ? 'bg-amber-500 text-slate-950 font-black'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>المحصلين ({collectorStats.length})</span>
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab('zones')}
@@ -140,10 +207,12 @@ export const ZoneTransformerCard: React.FC<ZoneTransformerCardProps> = ({
         </div>
       </div>
 
-      {/* Grid of Zone or Transformer Cards */}
+      {/* Grid of Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 text-xs max-h-72 overflow-y-auto pr-1">
-        {(activeTab === 'zones' ? zoneStats : transformerStats).map((entry) => {
-          const isSelected = activeTab === 'zones'
+        {(activeTab === 'collectors' ? collectorStats : activeTab === 'zones' ? zoneStats : transformerStats).map((entry) => {
+          const isSelected = activeTab === 'collectors'
+            ? selectedCollector === entry.name
+            : activeTab === 'zones'
             ? selectedZone === entry.name
             : selectedTransformer === entry.name;
 
@@ -202,7 +271,11 @@ export const ZoneTransformerCard: React.FC<ZoneTransformerCardProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (activeTab === 'zones') {
+                  if (activeTab === 'collectors') {
+                    if (onSelectCollector) {
+                      onSelectCollector(isSelected ? 'all' : entry.name);
+                    }
+                  } else if (activeTab === 'zones') {
                     onSelectZone(isSelected ? 'all' : entry.name);
                   } else {
                     onSelectTransformer(isSelected ? 'all' : entry.name);

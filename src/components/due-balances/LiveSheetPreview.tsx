@@ -327,6 +327,11 @@ export const LiveSheetPreview: React.FC<LiveSheetPreviewProps> = ({
                           case 'lastPaymentDate': val = item.lastPaymentDate; break;
                           case 'lastReadingDate': val = item.lastReadingDate; break;
                           case 'lastConsumption': val = item.lastConsumption ? `${item.lastConsumption} ك.و` : '-'; break;
+                          case 'collectorName': val = <span className="font-bold text-slate-800">{item.collectorName || '-'}</span>; break;
+                          case 'lastPaymentAmount': val = item.lastPaymentAmount ? item.lastPaymentAmount.toLocaleString() : '-'; break;
+                          case 'fieldPaid': val = <div className="min-w-[65px] h-4.5 border-b border-dashed border-slate-600 mx-auto" />; break;
+                          case 'receiptNumber': val = <div className="min-w-[55px] h-4.5 border-b border-dashed border-slate-600 mx-auto" />; break;
+                          case 'subscriberSignature': val = <div className="min-w-[75px] h-4.5 border-b border-dashed border-slate-600 mx-auto" />; break;
                           case 'status': val = item.status; break;
                           case 'notes': val = <div className="min-w-[80px] h-4 border-b border-dotted border-slate-400" />; break;
                           default: val = '-';

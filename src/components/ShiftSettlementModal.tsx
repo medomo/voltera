@@ -76,18 +76,19 @@ export const ShiftSettlementModal: React.FC<ShiftSettlementModalProps> = ({
     const ops = [
       ...myReadingsToday.map(r => ({ date: r.readingDate })),
       ...myPaymentsToday.map(p => ({ date: p.paymentDate }))
-    ].sort((a, b) => new Date(a.date.replace(' ', 'T')).getTime() - new Date(b.date.replace(' ', 'T')).getTime());
+    ].filter(op => Boolean(op.date))
+    .sort((a, b) => new Date(String(a.date || '').replace(' ', 'T')).getTime() - new Date(String(b.date || '').replace(' ', 'T')).getTime());
 
     if (ops.length === 0) {
       return { start: '--', end: '--', duration: 'لا توجد عمليات مسجلة' };
     }
 
-    const start = ops[0].date.substring(11, 16);
-    const end = ops[ops.length - 1].date.substring(11, 16);
+    const start = ops[0].date ? String(ops[0].date).substring(11, 16) : '--';
+    const end = ops[ops.length - 1].date ? String(ops[ops.length - 1].date).substring(11, 16) : '--';
 
     try {
-      const startTime = new Date(ops[0].date.replace(' ', 'T')).getTime();
-      const endTime = new Date(ops[ops.length - 1].date.replace(' ', 'T')).getTime();
+      const startTime = new Date(String(ops[0].date || '').replace(' ', 'T')).getTime();
+      const endTime = new Date(String(ops[ops.length - 1].date || '').replace(' ', 'T')).getTime();
       const diffMins = Math.max(0, Math.floor((endTime - startTime) / (1000 * 60)));
       const h = Math.floor(diffMins / 60);
       const m = diffMins % 60;

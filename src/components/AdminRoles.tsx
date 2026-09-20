@@ -282,8 +282,8 @@ export const AdminRoles: React.FC<AdminRolesProps> = ({
     const rows = filteredAuditLogs.map(l => [
       `"${l.id}"`,
       `"${l.username}"`,
-      `"${l.action.replace(/"/g, '""')}"`,
-      `"${l.details.replace(/"/g, '""')}"`,
+      `"${(l.action || '').replace(/"/g, '""')}"`,
+      `"${(l.details || '').replace(/"/g, '""')}"`,
       `"${l.timestamp}"`
     ]);
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

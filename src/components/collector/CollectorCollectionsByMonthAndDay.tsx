@@ -100,9 +100,9 @@ export const CollectorCollectionsByMonthAndDay: React.FC<CollectorCollectionsByM
   };
 
   const formatDateArabic = (dateStr: string) => {
-    if (!dateStr || dateStr.length < 10) return dateStr;
+    if (!dateStr || typeof dateStr !== 'string' || dateStr.length < 10) return String(dateStr || '');
     try {
-      const d = new Date(dateStr.replace(' ', 'T'));
+      const d = new Date(String(dateStr).replace(' ', 'T'));
       if (isNaN(d.getTime())) return dateStr;
       const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
       const dayName = days[d.getDay()];

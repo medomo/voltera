@@ -12,36 +12,6 @@ export const INITIAL_USERS: User[] = [
     createdAt: '2026-01-01 08:00'
   },
   {
-    id: 'u-2',
-    username: 'coll1',
-    passwordHash: '123',
-    role: 'collector',
-    name: 'محمد علي سالم (المحصل الميداني)',
-    status: 'active',
-    permissions: ['read_readings', 'write_readings', 'write_payments'],
-    createdAt: '2026-01-15 09:30'
-  },
-  {
-    id: 'u-3',
-    username: 'coll2',
-    passwordHash: '123',
-    role: 'collector',
-    name: 'خالد عبدالله عوض (المحصل الميداني)',
-    status: 'active',
-    permissions: ['read_readings', 'write_readings', 'write_payments'],
-    createdAt: '2026-02-01 10:00'
-  },
-  {
-    id: 'u-4',
-    username: 'coll_sus',
-    passwordHash: '123',
-    role: 'collector',
-    name: 'عمر ياسين سعيد (موقوف مؤقتاً)',
-    status: 'suspended',
-    permissions: ['read_readings'],
-    createdAt: '2026-02-15 11:00'
-  },
-  {
     id: 'u-5',
     username: 'manager',
     passwordHash: 'manager',

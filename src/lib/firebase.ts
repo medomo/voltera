@@ -6,29 +6,44 @@ import {
   doc, 
   getDocFromServer,
   persistentLocalCache, 
-  persistentMultipleTabManager 
+  persistentMultipleTabManager,
+  memoryLocalCache 
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-// Initialize Firestore with auto-detect long polling and persistent local cache
-// to prevent 10s WebChannel backend timeout errors in sandbox/iframe environments
+// Initialize Firestore with forced long-polling and resilient cache
+// Using experimentalForceLongPolling: true completely bypasses WebChannel streaming
+// connection attempts that cause the 10-second backend timeout warning in iframe/proxy environments.
 let firestoreInstance;
+const targetDbId = (firebaseConfig as any).firestoreDatabaseId;
+
 try {
   firestoreInstance = initializeFirestore(
     app,
     {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
       })
     },
-    (firebaseConfig as any).firestoreDatabaseId
+    targetDbId
   );
 } catch {
-  // If already initialized or if database ID requires standard getter
-  firestoreInstance = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+  try {
+    firestoreInstance = initializeFirestore(
+      app,
+      {
+        experimentalForceLongPolling: true,
+        localCache: memoryLocalCache()
+      },
+      targetDbId
+    );
+  } catch {
+    // If already initialized or if database ID requires standard getter
+    firestoreInstance = getFirestore(app, targetDbId);
+  }
 }
 
 export const db = firestoreInstance;
@@ -97,15 +112,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // Validate connection to Firestore as mandated by Firebase Skill
 export async function testConnection(): Promise<boolean> {
   try {
-    // Use a lightweight check with timeout
-    const testPromise = getDocFromServer(doc(db, 'test', 'connection'));
-    const timeoutPromise = new Promise<never>((_, reject) => 
-      setTimeout(() => reject(new Error('Connection timeout check')), 4000)
-    );
-    await Promise.race([testPromise, timeoutPromise]);
+    await getDocFromServer(doc(db, 'test', 'connection'));
     return true;
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('timeout'))) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn("Firestore operating with cached offline resilience.");
     }
     return false;
